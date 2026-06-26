@@ -20,31 +20,31 @@ Everything compiles to **one truly self-contained `dist/index.html`** with **zer
 
 ---
 
-## Quick start
+## Installation on Rebecca
+
+To deploy Vortex on the Rebecca panel, go to **Master Settings → Subscriptions**. The template loads from `{Custom templates directory}/{Subscription page template}`, defaulting to `/var/lib/rebecca/templates/subscription/index.html`.
+
+Download the latest release:
 
 ```bash
-npm ci          # install pinned deps
-npm run build   # → dist/index.html  (self-contained, offline-ready)
-npm run guard   # re-run the pongo2 directive guard on dist/index.html
-npm run serve   # local preview with sample data → http://localhost:8787
+wget -O /var/lib/rebecca/templates/subscription/index.html \
+  https://github.com/Ho3einK84/Vortex/releases/latest/download/index.html
 ```
 
-`npm run serve` emulates Rebecca's pongo2 rendering with sample data so you can browse the page in a normal browser. Try states and locales:
+Make sure **Subscription page template** is set to `subscription/index.html` (the default). Alternatively, paste the file contents straight into the **Template Creator** tab. Rebecca reloads the template on every request, so no service restart is needed — just open any user's subscription URL to see the page.
 
-```
-http://localhost:8787/?state=expired      # active|limited|expired|disabled|on_hold|unlimited|forever
-http://localhost:8787/?lang=fa&theme=vortex-dark
-```
+## Updating
 
----
+Run the same `wget` command again (or re-paste into **Template Creator**) — the new file is picked up on the next page load.
 
-## Install into Rebecca
-
-Drop the built file at the template path — Rebecca re-reads it on every request, so no restart is needed:
+## Building locally
 
 ```bash
-cp dist/index.html /var/lib/rebecca/templates/subscription/index.html
+npm ci
+npm run build      # → dist/index.html (single self-contained file)
 ```
+
+The build compiles UnoCSS, inlines every asset (fonts, icons, `apps.json`, `app.js`), base64-injects the JS bundle and the QR generator, and guarantees the template's own `{{ }}` / `{% %}` bindings are the only directives in the output.
 
 ---
 
