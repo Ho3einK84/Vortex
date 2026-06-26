@@ -1,0 +1,45 @@
+name: build
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build single-file template
+        run: npm run build
+
+      - name: Verify pongo2 directive guard
+        run: npm run guard
+
+      - name: Assert dist/index.html is self-contained
+        run: |
+          set -e
+          f=dist/index.html
+          test -f "$f"
+          # No external resource loads of any kind.
+          if grep -Eiq '<link[^>]+rel=|<script[^>]+src=|@import|url\(["'\'']?https?:' "$f"; then
+            echo "::error::dist/index.html references an external resource"; exit 1
+          fi
+          echo "OK: $(du -h "$f" | cut -f1) self-contained build"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vortex-index-html
+          path: dist/index.html
+          if-no-files-found: error
