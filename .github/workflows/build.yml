@@ -3,6 +3,7 @@ name: build
 on:
   push:
     branches: ['**']
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -43,3 +44,28 @@ jobs:
           name: vortex-index-html
           path: dist/index.html
           if-no-files-found: error
+
+  # On a pushed tag (e.g. v1.0.0), attach the freshly built index.html to the
+  # matching GitHub Release so releases/latest/download/index.html always works.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Attach index.html to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/index.html
+          fail_on_unmatched_files: true
