@@ -1,0 +1,140 @@
+{
+  "schemes": {
+    "comment": "Placeholders replaced at runtime by app.js: {url} raw subscription URL, {url_enc} encodeURIComponent, {url_b64} base64(url), {name} username.",
+    "tokens": ["{url}", "{url_enc}", "{url_b64}", "{name}"]
+  },
+  "os": [
+    {
+      "id": "android",
+      "name": "Android",
+      "apps": [
+        {
+          "name": "v2rayNG",
+          "import": "v2rayng://install-sub?url={url_enc}",
+          "download": "https://github.com/2dust/v2rayNG/releases/latest"
+        },
+        {
+          "name": "Hiddify",
+          "import": "hiddify://import/{url}",
+          "download": "https://github.com/hiddify/hiddify-app/releases/latest"
+        },
+        {
+          "name": "Happ",
+          "import": "happ://add/{url}",
+          "download": "https://github.com/Happ-proxy/happ-android/releases/latest"
+        },
+        {
+          "name": "NekoBox",
+          "import": "sn://subscription?url={url_enc}",
+          "download": "https://github.com/MatsuriDayo/NekoBoxForAndroid/releases/latest"
+        },
+        {
+          "name": "sing-box",
+          "import": "sing-box://import-remote-profile?url={url_enc}",
+          "download": "https://github.com/SagerNet/sing-box/releases/latest"
+        }
+      ]
+    },
+    {
+      "id": "ios",
+      "name": "iOS",
+      "apps": [
+        {
+          "name": "Streisand",
+          "import": "streisand://import/{url}",
+          "download": "https://apps.apple.com/app/streisand/id6450534064"
+        },
+        {
+          "name": "Shadowrocket",
+          "import": "sub://{url_b64}",
+          "download": "https://apps.apple.com/app/shadowrocket/id932747118"
+        },
+        {
+          "name": "Happ",
+          "import": "happ://add/{url}",
+          "download": "https://apps.apple.com/app/happ-proxy-utility/id6504287215"
+        },
+        {
+          "name": "sing-box",
+          "import": "sing-box://import-remote-profile?url={url_enc}",
+          "download": "https://apps.apple.com/app/sing-box-vt/id6673731168"
+        },
+        {
+          "name": "FoXray",
+          "import": "foxray://import/{url}",
+          "download": "https://apps.apple.com/app/foxray/id6448898396"
+        }
+      ]
+    },
+    {
+      "id": "windows",
+      "name": "Windows",
+      "apps": [
+        {
+          "name": "Hiddify",
+          "import": "hiddify://import/{url}",
+          "download": "https://github.com/hiddify/hiddify-app/releases/latest"
+        },
+        {
+          "name": "v2rayN",
+          "download": "https://github.com/2dust/v2rayN/releases/latest"
+        },
+        {
+          "name": "NekoRay",
+          "download": "https://github.com/MatsuriDayo/nekoray/releases/latest"
+        },
+        {
+          "name": "sing-box",
+          "import": "sing-box://import-remote-profile?url={url_enc}",
+          "download": "https://github.com/SagerNet/sing-box/releases/latest"
+        }
+      ]
+    },
+    {
+      "id": "macos",
+      "name": "macOS",
+      "apps": [
+        {
+          "name": "Hiddify",
+          "import": "hiddify://import/{url}",
+          "download": "https://github.com/hiddify/hiddify-app/releases/latest"
+        },
+        {
+          "name": "Streisand",
+          "import": "streisand://import/{url}",
+          "download": "https://apps.apple.com/app/streisand/id6450534064"
+        },
+        {
+          "name": "Happ",
+          "import": "happ://add/{url}",
+          "download": "https://apps.apple.com/app/happ-proxy-utility/id6504287215"
+        },
+        {
+          "name": "FoXray",
+          "import": "foxray://import/{url}",
+          "download": "https://apps.apple.com/app/foxray/id6448898396"
+        }
+      ]
+    },
+    {
+      "id": "linux",
+      "name": "Linux",
+      "apps": [
+        {
+          "name": "Hiddify",
+          "import": "hiddify://import/{url}",
+          "download": "https://github.com/hiddify/hiddify-app/releases/latest"
+        },
+        {
+          "name": "NekoRay",
+          "download": "https://github.com/MatsuriDayo/nekoray/releases/latest"
+        },
+        {
+          "name": "sing-box",
+          "import": "sing-box://import-remote-profile?url={url_enc}",
+          "download": "https://github.com/SagerNet/sing-box/releases/latest"
+        }
+      ]
+    }
+  ]
+}
