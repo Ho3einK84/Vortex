@@ -123,6 +123,10 @@ vortex/
 
 ## Changelog
 
+### v1.2.1
+
+- Updated Android and Linux OS icons to more closely match the official logos.
+
 ### v1.2.0
 
 - White-label branding via `brand_name` binding.
