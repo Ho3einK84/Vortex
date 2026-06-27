@@ -333,12 +333,17 @@ function renderCard() {
   } else {
     const nowSec = Date.now() / 1000
     const remainingSec = Math.max(0, CTX.expire - nowSec)
-    // Persisted anchor → a depleting arc even though we only know "remaining".
-    let total = remainingSec
-    const key = 'vortex:total:' + CTX.username + ':' + CTX.expire
-    const stored = num(read(key))
-    if (stored > 0) total = Math.max(stored, remainingSec)
-    else if (remainingSec > 0) persist(key, String(Math.round(remainingSec)))
+    // We do not get the subscription start time from Rebecca, so infer a sane
+    // total cycle from the remaining duration. This keeps the remaining-time
+    // ring functional on first load instead of always rendering as 100%.
+    const remainingDaysForCycle = Math.max(CTX.remainingDays, remainingSec / 86400)
+    const cycleDays = remainingDaysForCycle <= 1 ? 1
+      : remainingDaysForCycle <= 7 ? 7
+        : remainingDaysForCycle <= 31 ? 31
+          : remainingDaysForCycle <= 93 ? 93
+            : remainingDaysForCycle <= 366 ? 366
+              : remainingDaysForCycle
+    const total = Math.max(remainingSec, cycleDays * 86400)
     const frac = total > 0 ? clamp(remainingSec / total, 0, 1) : 0
     setRing('ring-time', frac)
     $('#ring-time-pct').classList.remove('is-infinity')
@@ -511,6 +516,16 @@ function labelForConfig(uri, i) {
 
 /* ------------------------------------------------------------ render: apps */
 
+function osIconName(osId) {
+  return {
+    android: 'android',
+    ios: 'apple',
+    macos: 'apple',
+    windows: 'windows',
+    linux: 'linux',
+  }[osId] || 'download'
+}
+
 function renderApps() {
   const wrap = $('#apps-list')
   wrap.innerHTML = ''
@@ -521,16 +536,18 @@ function renderApps() {
     section.className = 'os-group'
     section.innerHTML = `
       <button class="os-head" data-act="toggle" aria-expanded="${gi === 0}">
-        <span class="os-name">${escapeHtml(group.name)}</span>
+        <span class="os-name"><span class="os-icon">${icon(osIconName(group.id))}</span>${escapeHtml(group.name)}</span>
         <span class="os-chevron">${icon('chevron')}</span>
       </button>
       <div class="os-body${gi === 0 ? '' : ' hidden'}"></div>`
     const body = section.querySelector('.os-body')
+    const list = document.createElement('div')
+    if (group.apps.length > 3) list.className = 'apps-scroll'
+    body.appendChild(list)
 
     group.apps.forEach((app) => {
       const card = document.createElement('div')
       card.className = 'app-row'
-      const mono = escapeHtml((app.name || '?').slice(0, 1).toUpperCase())
       let actions = ''
       if (app.import) {
         actions += `<a class="app-btn app-import" href="${escapeAttr(
@@ -545,10 +562,10 @@ function renderApps() {
         )}</span></a>`
       }
       card.innerHTML = `
-        <div class="app-mono">${mono}</div>
+        <div class="app-os-icon">${icon(osIconName(group.id))}</div>
         <div class="app-name">${escapeHtml(app.name)}</div>
         <div class="app-actions">${actions}</div>`
-      body.appendChild(card)
+      list.appendChild(card)
     })
 
     section.querySelector('[data-act=toggle]').addEventListener('click', (e) => {

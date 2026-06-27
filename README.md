@@ -117,6 +117,20 @@ vortex/
 
 ---
 
+## Changelog
+
+### v1.1.0
+
+- Fixed mobile responsiveness and Persian/RTL layout scaling so the page fits without zooming.
+- Centered and contained QR modal content in both English and Persian.
+- Added app-list scrolling for OS groups with more than three apps.
+- Added Android, iOS/macOS, Windows, and Linux icons beside apps.
+- Removed unwanted progress-ring outlines and rounded progress strokes.
+- Improved the remaining-time ring calculation.
+- Rebalanced the dark theme with a softer modern palette and strong contrast.
+
+---
+
 ## License
 
 MIT.
