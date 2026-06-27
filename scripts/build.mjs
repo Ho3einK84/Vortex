@@ -44,6 +44,8 @@ const ALLOWED_DIRECTIVES = new Set(
     '{{ usage_url }}',
     '{{ support_url }}',
     '{{ token }}',
+    '{{ brand_name }}',
+    '{{ user.online_count }}',
     '{{ link }}',
     '{% for link in links %}',
     '{% endfor %}',

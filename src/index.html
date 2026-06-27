@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#111111" />
     <title>Vortex</title>
     <!-- vortex:styles -->
   </head>
@@ -25,6 +26,8 @@
       data-usage-url="{{ usage_url }}"
       data-support-url="{{ support_url }}"
       data-token="{{ token }}"
+      data-brand-name="{{ brand_name }}"
+      data-online-count="{{ user.online_count }}"
     >
       <script type="text/plain" id="rb-links">{% for link in links %}{{ link }}
 {% endfor %}</script>
@@ -49,9 +52,13 @@
         <div class="flex items-center gap-3">
           <div class="brand-mark" data-icon="bolt"></div>
           <div class="leading-none">
-            <div class="font-900 text-xl tracking-tight uppercase">Vortex</div>
+            <div class="font-900 text-xl tracking-tight uppercase" id="brand-name">Vortex</div>
             <div class="muted text-xs font-700 mt-1" data-i18n="brand_sub">Subscription</div>
           </div>
+          <span id="online-badge" class="online-badge hidden" aria-label="Online users">
+            <span class="w-3 h-3 inline-flex" data-icon="user"></span>
+            <span id="online-count">0</span>
+          </span>
         </div>
         <div class="flex items-center gap-2">
           <button
@@ -152,6 +159,17 @@
 
         <!-- State note (expired / limited / disabled / on_hold) -->
         <div id="state-note" class="hidden mt-3"></div>
+
+        <!-- Usage dashboard -->
+        <div id="usage-dashboard" class="hidden mt-4">
+          <div class="usage-header">
+            <span class="w-4 h-4 inline-flex" data-icon="database"></span>
+            <span data-i18n="usage_history">Usage history</span>
+            <span id="usage-period" class="muted text-xs"></span>
+          </div>
+          <div id="usage-chart" class="usage-chart" aria-hidden="true"></div>
+          <div id="usage-alert" class="usage-alert hidden" role="status"></div>
+        </div>
       </section>
 
       <!-- Configs -->
@@ -185,8 +203,8 @@
         </div>
       </section>
 
-      <!-- Apps -->
-      <section data-reveal class="mt-5">
+      <!-- Apps (lazy-loaded) -->
+      <section data-reveal class="mt-5" id="apps-section">
         <button class="section-head" data-collapse="apps-body" aria-expanded="true">
           <span class="section-title">
             <span data-icon="download"></span>
@@ -198,7 +216,9 @@
           <p class="muted text-xs font-700 mb-2" data-i18n="pick_client">
             Pick a client, import in one tap.
           </p>
-          <div id="apps-list"></div>
+          <div id="apps-list" data-lazy="apps">
+            <div class="lazy-placeholder muted text-sm text-center py-4" data-i18n="loading_apps">Loading apps…</div>
+          </div>
         </div>
       </section>
 

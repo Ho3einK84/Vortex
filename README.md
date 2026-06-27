@@ -14,7 +14,11 @@ Everything compiles to **one truly self-contained `dist/index.html`** with **zer
 - **Configs** — collapsible list with one-tap copy, per-config QR, copy-all, and a subscription-link QR.
 - **Apps** — collapsible, OS-grouped client list (Android / iOS / Windows / macOS / Linux) with one-tap import deep links + download links, sourced from `src/apps.json`.
 - **Themes** — two brutalist variants, `vortex-light` (paper) and `vortex-dark` (amoled). Preference persists (storage-optional).
-- **i18n** — English (Exo 2) and فارسی (Arad) with full RTL and localized Persian digits. Auto-selects FA when `navigator.language` starts with `fa`. Force with `?lang=fa` / `?theme=vortex-dark`.
+- **i18n** — English (Exo 2) and فارسی (Arad) with full RTL, localized Persian digits and Jalali dates. Auto-selects FA when `navigator.language` starts with `fa`. Force with `?lang=fa` / `?theme=vortex-dark`.
+- **White-label** — `brand_name` binding customizes the splash, header and page title.
+- **Usage dashboard** — 30-day bar chart from `usage_url` plus 50/80/90% usage alerts.
+- **PWA-ready** — dynamically registered manifest and inline service worker for installability.
+- **Accessibility** — ARIA labels, focus trap in the QR modal, and `Ctrl/Cmd+Shift+C` to copy all configs.
 - **Resilient** — offline banner, and graceful expired / limited / disabled / on-hold / empty states.
 - **Polish** — instant loading splash, staggered reveal, full `prefers-reduced-motion` support.
 
@@ -118,6 +122,18 @@ vortex/
 ---
 
 ## Changelog
+
+### v1.2.0
+
+- White-label branding via `brand_name` binding.
+- Usage dashboard: 30-day bar chart from `usage_url` and animated 50/80/90% usage alerts.
+- PWA-ready: dynamically registered manifest and inline service worker.
+- Lazy-load the Apps section on first open/intersection.
+- Persian Jalali date formatting and improved language detection.
+- Keyboard shortcut `Ctrl/Cmd+Shift+C` to copy all configs.
+- Focus trap and ARIA improvements for the QR modal.
+- `online_count` support from Rebecca.
+- Visual regression test scaffold (`npm run test:visual`).
 
 ### v1.1.0
 

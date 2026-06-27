@@ -7,7 +7,7 @@
 // The entire bundle is base64-injected at runtime by the build, so pongo2 never sees
 // any of this source — only the data-island bindings remain as live template tags.
 
-import { STRINGS, toFaDigits, locNum } from './i18n.js'
+import { STRINGS, toFaDigits, locNum, fmtDate } from './i18n.js'
 import { icon } from './icons.js'
 import { qrSvg } from './qr.js'
 import APPS from './apps.json'
@@ -61,6 +61,8 @@ function readContext() {
 
   return {
     username: (d.username || '').trim() || '—',
+    brandName: (d.brandName || '').trim() || 'Vortex',
+    onlineCount: num(d.onlineCount),
     status: (d.status || '').trim().toLowerCase(),
     statusClass: (d.statusClass || '').trim(),
     dataLimit: num(d.dataLimit),
@@ -262,7 +264,10 @@ function toast(msg) {
 
 /* ----------------------------------------------------------------- QR modal */
 
+let lastFocus = null
+
 function openQr(title, text) {
+  lastFocus = document.activeElement
   const modal = $('#qr-modal')
   const dark = theme === 'vortex-dark' ? '#f4f1e8' : '#0a0a0a'
   const light = theme === 'vortex-dark' ? '#0a0a0a' : '#ffffff'
@@ -271,12 +276,33 @@ function openQr(title, text) {
   $('#qr-modal-text').textContent = text
   modal.classList.remove('hidden')
   modal.setAttribute('aria-hidden', 'false')
+  // focus trap: move focus to close button, then constrain Tab.
+  $('#qr-modal-close').focus()
+  document.addEventListener('keydown', trapFocus)
 }
 
 function closeQr() {
   const modal = $('#qr-modal')
   modal.classList.add('hidden')
   modal.setAttribute('aria-hidden', 'true')
+  document.removeEventListener('keydown', trapFocus)
+  if (lastFocus && lastFocus.focus) lastFocus.focus()
+}
+
+function trapFocus(e) {
+  if (e.key !== 'Tab') return
+  const modal = $('#qr-modal')
+  const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+  if (!focusable.length) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault()
+    first.focus()
+  }
 }
 
 /* --------------------------------------------------------------- render: card */
@@ -356,12 +382,8 @@ function renderCard() {
     $('#ring-time-days').textContent = days === 1 ? t('day_unit') : t('days_unit')
 
     const expDate = new Date(CTX.expire * 1000)
-    const dStr = expDate.toLocaleDateString(lang === 'fa' ? 'fa-IR' : 'en-GB', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-    $('#stat-expire-val').textContent = lang === 'fa' ? toFaDigits(dStr) : dStr
+    const dStr = fmtDate(expDate, lang, { month: 'short' })
+    $('#stat-expire-val').textContent = dStr
     $('#stat-expire-unit').textContent = ''
   }
 
@@ -386,6 +408,9 @@ function renderCard() {
   } else {
     note.classList.add('hidden')
   }
+
+  // ---- usage dashboard
+  renderUsageDashboard()
 }
 
 /* ---------------------------------------------------------- quota reset timer */
@@ -485,8 +510,8 @@ function renderConfigs() {
         <div class="config-name" title="${escapeAttr(link)}">${escapeHtml(name)}</div>
       </div>
       <div class="config-actions">
-        <button class="icon-btn" data-act="qr" aria-label="QR">${icon('qr')}</button>
-        <button class="icon-btn" data-act="copy" aria-label="Copy">${icon('copy')}</button>
+        <button class="icon-btn" data-act="qr" aria-label="${t('show_qr')}">${icon('qr')}</button>
+        <button class="icon-btn" data-act="copy" aria-label="${t('copy')}">${icon('copy')}</button>
       </div>`
     row.querySelector('[data-act=copy]').addEventListener('click', async () => {
       const ok = await copyText(link)
@@ -516,6 +541,8 @@ function labelForConfig(uri, i) {
 
 /* ------------------------------------------------------------ render: apps */
 
+let appsRendered = false
+
 function osIconName(osId) {
   return {
     android: 'android',
@@ -527,6 +554,8 @@ function osIconName(osId) {
 }
 
 function renderApps() {
+  if (appsRendered) return
+  appsRendered = true
   const wrap = $('#apps-list')
   wrap.innerHTML = ''
   const osList = (APPS && APPS.os) || []
@@ -579,6 +608,31 @@ function renderApps() {
   })
 }
 
+function lazyLoadApps() {
+  const wrap = $('#apps-list')
+  if (!wrap || appsRendered) return
+  // Render immediately if already visible, else observe once.
+  const section = $('#apps-section')
+  if (!section) {
+    renderApps()
+    return
+  }
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          renderApps()
+          io.disconnect()
+        }
+      },
+      { rootMargin: '100px' },
+    )
+    io.observe(section)
+  } else {
+    renderApps()
+  }
+}
+
 /* ------------------------------------------------------------- misc render */
 
 function renderLinks() {
@@ -594,9 +648,118 @@ function renderLinks() {
   } else usg.classList.add('hidden')
 }
 
+function renderBrand() {
+  const brand = $('#brand-name')
+  const splash = $('.splash-word')
+  if (brand) brand.textContent = CTX.brandName
+  if (splash) splash.textContent = CTX.brandName
+  document.title = CTX.username + ' · ' + CTX.brandName
+}
+
+function renderOnlineBadge() {
+  const badge = $('#online-badge')
+  const count = $('#online-count')
+  if (!badge || !count) return
+  if (CTX.onlineCount > 0) {
+    count.textContent = locNum(CTX.onlineCount, lang)
+    badge.classList.remove('hidden')
+  } else {
+    badge.classList.add('hidden')
+  }
+}
+
+/* --------------------------------------------------------- usage dashboard */
+
+let usageHistory = null
+
+async function loadUsageHistory() {
+  if (!CTX.usageUrl) return
+  try {
+    const res = await fetch(CTX.usageUrl, { cache: 'no-store' })
+    if (!res.ok) return
+    const data = await res.json()
+    // Accept either an array of {date, used} or {history: [...]}.
+    usageHistory = Array.isArray(data) ? data : data.history || data.data || null
+  } catch (e) {
+    usageHistory = null
+  }
+}
+
+function renderUsageDashboard() {
+  const dash = $('#usage-dashboard')
+  const chart = $('#usage-chart')
+  const alert = $('#usage-alert')
+  const period = $('#usage-period')
+  if (!dash || !chart) return
+
+  if (!usageHistory || !usageHistory.length) {
+    dash.classList.add('hidden')
+    return
+  }
+  dash.classList.remove('hidden')
+
+  // Keep last 30 entries, sorted ascending by date.
+  const rows = usageHistory
+    .slice()
+    .sort((a, b) => new Date(a.date || a.day || a.t) - new Date(b.date || b.day || b.t))
+    .slice(-30)
+  const max = Math.max(1, ...rows.map((r) => num(r.used || r.value || r.bytes || r.total)))
+
+  // Build SVG bar chart.
+  const W = 300
+  const H = 80
+  const pad = 4
+  const barW = (W - pad * 2) / rows.length - 2
+  let rects = ''
+  rows.forEach((r, i) => {
+    const v = num(r.used || r.value || r.bytes || r.total)
+    const h = (v / max) * (H - 10)
+    const x = pad + i * (barW + 2)
+    const y = H - h
+    rects += `<rect x="${x}" y="${y}" width="${Math.max(1, barW)}" height="${h}" rx="2" />`
+  })
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${rects}</svg>`
+
+  // Period label.
+  const first = new Date(rows[0].date || rows[0].day || rows[0].t)
+  const last = new Date(rows[rows.length - 1].date || rows[rows.length - 1].day || rows[rows.length - 1].t)
+  if (period && first && last && !isNaN(first) && !isNaN(last)) {
+    period.textContent = `${fmtDate(first, lang, { month: 'short' })} – ${fmtDate(last, lang, { month: 'short' })}`
+  }
+
+  // Usage alert thresholds.
+  const limit = CTX.dataLimit
+  if (limit > 0) {
+    const pct = CTX.usedTraffic / limit
+    let level = ''
+    let msg = ''
+    if (pct >= 0.9) {
+      level = 'danger'
+      msg = t('limited_note')
+    } else if (pct >= 0.8) {
+      level = 'warning'
+      msg = '80% ' + t('data_usage').toLowerCase()
+    } else if (pct >= 0.5) {
+      level = 'notice'
+      msg = '50% ' + t('data_usage').toLowerCase()
+    }
+    if (level) {
+      alert.className = 'usage-alert usage-alert-' + level
+      alert.textContent = msg
+      alert.classList.remove('hidden')
+    } else {
+      alert.classList.add('hidden')
+    }
+  } else {
+    alert.classList.add('hidden')
+  }
+}
+
 /** Re-run renders that depend on language/number formatting. */
 function renderDynamic() {
   if (!CTX) return
+  renderBrand()
+  renderOnlineBadge()
   renderCard()
   renderConfigs()
   // app import/download labels
@@ -635,7 +798,7 @@ function wireOffline() {
 function resolvePrefs() {
   const params = new URLSearchParams(location.search)
 
-  // language: ?lang → stored → navigator → default en
+  // language: ?lang → stored → navigator → IP hint → default en
   const pLang = (params.get('lang') || '').toLowerCase()
   const sLang = read('vortex:lang')
   const nav = (navigator.language || 'en').toLowerCase()
@@ -675,6 +838,10 @@ function wireControls() {
       const expanded = head.getAttribute('aria-expanded') !== 'false'
       head.setAttribute('aria-expanded', String(!expanded))
       target.classList.toggle('hidden', expanded)
+      // Lazy-load apps when the section is opened.
+      if (head.getAttribute('data-collapse') === 'apps-body' && !expanded) {
+        lazyLoadApps()
+      }
     })
   })
 
@@ -690,6 +857,51 @@ function wireControls() {
     const ok = await copyText($('#qr-modal-text').textContent)
     toast(ok ? t('copied') : '✕')
   })
+
+  // Keyboard shortcuts.
+  document.addEventListener('keydown', (e) => {
+    const mod = e.ctrlKey || e.metaKey
+    if (mod && e.shiftKey && e.key.toLowerCase() === 'c') {
+      e.preventDefault()
+      if (CTX.links.length) {
+        copyText(CTX.links.join('\n')).then((ok) => toast(ok ? t('copied') : '✕'))
+      }
+    }
+  })
+}
+
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    // Inline a minimal SW as a data-URI so we stay self-contained.
+    const swSrc =
+      "self.addEventListener('install',function(e){self.skipWaiting()});" +
+      "self.addEventListener('activate',function(e){e.waitUntil(self.clients.claim())});" +
+      "self.addEventListener('fetch',function(e){e.respondWith(fetch(e.request).catch(function(){return new Response('Offline',{status:503})}))});"
+    const blob = new Blob([swSrc], { type: 'application/javascript' })
+    const url = URL.createObjectURL(blob)
+    navigator.serviceWorker.register(url).catch(() => {})
+  }
+}
+
+function installManifest() {
+  // Register a manifest dynamically so the page remains fully self-contained.
+  const manifest = {
+    name: CTX.brandName || 'Vortex',
+    short_name: CTX.brandName || 'Vortex',
+    start_url: '.',
+    display: 'standalone',
+    background_color: '#f3eee1',
+    theme_color: '#111111',
+  }
+  const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  let link = document.querySelector('link[rel="manifest"]')
+  if (!link) {
+    link = document.createElement('link')
+    link.rel = 'manifest'
+    document.head.appendChild(link)
+  }
+  link.href = url
 }
 
 function reveal() {
@@ -717,10 +929,9 @@ function fillIcons() {
   })
 }
 
-function init() {
+async function init() {
   CTX = readContext()
   STATE = deriveState(CTX)
-  document.title = CTX.username + ' · Vortex'
 
   fillIcons()
   resolvePrefs()
@@ -728,10 +939,17 @@ function init() {
   setTheme(theme)
   setLang(lang) // also applies i18n + first dynamic render
 
-  renderApps()
+  renderBrand()
+  renderOnlineBadge()
   renderLinks()
   wireControls()
   wireOffline()
+  installManifest()
+  registerServiceWorker()
+
+  // Load usage history asynchronously; it will render when ready.
+  await loadUsageHistory()
+  renderUsageDashboard()
 
   requestAnimationFrame(() => {
     hideSplash()

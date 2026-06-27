@@ -52,6 +52,10 @@ export const STRINGS = {
 
     support: 'Support',
     usage: 'Usage',
+    usage_history: 'Usage history',
+    loading_apps: 'Loading apps…',
+    today: 'Today',
+    yesterday: 'Yesterday',
     offline: 'You are offline — showing last loaded data.',
 
     expired_note: 'This subscription has expired. Contact support to renew.',
@@ -109,6 +113,10 @@ export const STRINGS = {
 
     support: 'پشتیبانی',
     usage: 'مصرف',
+    usage_history: 'تاریخچه مصرف',
+    loading_apps: 'بارگیری برنامه‌ها…',
+    today: 'امروز',
+    yesterday: 'دیروز',
     offline: 'اتصال قطع است — آخرین داده‌های بارگذاری‌شده نمایش داده می‌شود.',
 
     expired_note: 'این اشتراک منقضی شده است. برای تمدید با پشتیبانی تماس بگیرید.',
@@ -128,4 +136,37 @@ export function toFaDigits(str) {
 /** Localize a number/string per language (Persian digits when fa). */
 export function locNum(value, lang) {
   return lang === 'fa' ? toFaDigits(value) : String(value)
+}
+
+/** Convert a Gregorian Date to Jalali { y, m, d }. Lightweight, no external deps. */
+export function toJalali(date) {
+  const gy = date.getFullYear()
+  const gm = date.getMonth() + 1
+  const gd = date.getDate()
+  const g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
+  let gy2 = gm > 2 ? gy + 1 : gy
+  let days = 355666 + 365 * gy + Math.floor((gy2 + 3) / 4) - Math.floor((gy2 + 99) / 100) + Math.floor((gy2 + 399) / 400) + gd + g_d_m[gm - 1]
+  let jy = -1595 + 33 * Math.floor(days / 12053)
+  days %= 12053
+  jy += 4 * Math.floor(days / 1461)
+  days %= 1461
+  if (days > 365) {
+    jy += Math.floor((days - 1) / 365)
+    days = (days - 1) % 365
+  }
+  const jm = days < 186 ? 1 + Math.floor(days / 31) : 7 + Math.floor((days - 186) / 30)
+  const jd = 1 + (days < 186 ? days % 31 : (days - 186) % 30)
+  return { y: jy, m: jm, d: jd }
+}
+
+/** Format a date in the user's locale, with Jalali for Persian. */
+export function fmtDate(date, lang, opts = {}) {
+  if (lang === 'fa') {
+    const j = toJalali(date)
+    const pad = (n) => String(n).padStart(2, '0')
+    const months = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند']
+    if (opts.month === 'short') return `${j.d} ${months[j.m - 1]}`
+    return `${j.y}/${pad(j.m)}/${pad(j.d)}`
+  }
+  return date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })
 }
