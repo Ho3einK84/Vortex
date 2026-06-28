@@ -50,7 +50,9 @@ function readContext() {
     links = linkNode.textContent
       .split(/\r?\n/)
       .map((s) => s.trim())
-      .filter((s) => s && /^[a-z][a-z0-9+.-]*:\/\//i.test(s))
+      // Accept any scheme-prefixed URI (some valid config schemes omit the `//`,
+      // e.g. ss:// vs. proprietary `scheme:` deep links). Just require a scheme.
+      .filter((s) => s && /^[a-z][a-z0-9+.-]*:/i.test(s))
   }
 
   let subUrl = (d.subscriptionUrl || '').trim()
@@ -137,6 +139,11 @@ function applyI18n() {
     const key = el.getAttribute('data-i18n')
     if (dict[key] != null) el.textContent = dict[key]
   })
+  // Placeholder attributes (search input, etc.).
+  $$('[data-i18n-ph]').forEach((el) => {
+    const key = el.getAttribute('data-i18n-ph')
+    if (dict[key] != null) el.setAttribute('placeholder', dict[key])
+  })
   // Re-render dynamic, number-bearing sections so digits/labels follow the language.
   renderDynamic()
 }
@@ -166,6 +173,12 @@ function setTheme(next) {
     btn.querySelector('[data-slot=icon]').innerHTML = icon(
       theme === 'vortex-dark' ? 'sun' : 'moon',
     )
+  }
+  // Keep PWA manifest + browser chrome colour in step with the theme (Bug #13).
+  if (CTX) installManifest()
+  else {
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) meta.setAttribute('content', themeColor('--paper', '#111111'))
   }
 }
 
@@ -201,16 +214,48 @@ function setRing(id, fraction) {
   circle.style.strokeDashoffset = offset.toFixed(2)
 }
 
+/* ------------------------------------------------------------- number counters */
+
+const countAnims = new WeakMap()
+
+/**
+ * Tween an element's text from 0 → `to`, formatting each frame via `fmt`.
+ * Re-entrant (cancels any in-flight tween on the same element) and a no-op under
+ * reduced-motion. `snap` forces the final value immediately (used on re-renders so
+ * the count-up only plays once, on first reveal).
+ */
+function animateCount(el, to, fmt, snap) {
+  if (!el) return
+  const prev = countAnims.get(el)
+  if (prev) cancelAnimationFrame(prev)
+  if (snap || reduceMotion) {
+    el.textContent = fmt(to)
+    return
+  }
+  const start = performance.now()
+  const dur = 900
+  const step = (now) => {
+    const p = clamp((now - start) / dur, 0, 1)
+    // easeOutCubic
+    const eased = 1 - Math.pow(1 - p, 3)
+    el.textContent = fmt(to * eased)
+    if (p < 1) countAnims.set(el, requestAnimationFrame(step))
+    else countAnims.delete(el)
+  }
+  countAnims.set(el, requestAnimationFrame(step))
+}
+
 /* --------------------------------------------------------------- subscription */
 
 let CTX = null
 let STATE = 'active'
+let cardAnimated = false // count-up plays only on the first card render
 
 function importUrl(template) {
   const url = CTX.subUrl
   let b64 = ''
   try {
-    b64 = btoa(unescape(encodeURIComponent(url)))
+    b64 = utf8ToBase64(url)
   } catch (e) {
     b64 = ''
   }
@@ -319,9 +364,17 @@ function renderCard() {
   $('#service-card').setAttribute('data-state', STATE)
   $('#app').setAttribute('data-state', STATE)
 
+  // Build a count-up formatter that matches the decimal precision of `finalStr`.
+  const numFmt = (finalStr) => {
+    const dot = String(finalStr).indexOf('.')
+    const dec = dot >= 0 ? String(finalStr).length - dot - 1 : 0
+    return (n) => locNum(n.toFixed(dec), lang)
+  }
+  const snap = cardAnimated
+
   // ---- data ring + stats
   const usedF = fmtBytes(used)
-  $('#stat-used-val').textContent = locNum(usedF.value, lang)
+  animateCount($('#stat-used-val'), parseFloat(usedF.value) || 0, numFmt(usedF.value), snap)
   $('#stat-used-unit').textContent = usedF.unit
 
   if (unlimited) {
@@ -330,17 +383,20 @@ function renderCard() {
     $('#ring-data-pct').classList.add('is-infinity')
     $('#stat-total-val').innerHTML = icon('infinity')
     $('#stat-total-unit').textContent = ''
+    $('#ring-data').classList.remove('is-urgent')
   } else {
     const frac = clamp(used / limit, 0, 1)
     setRing('ring-data', frac)
+    // Urgent glow once usage crosses 90%.
+    $('#ring-data').classList.toggle('is-urgent', frac >= 0.9)
     const pct = Math.round(frac * 100)
     $('#ring-data-pct').textContent = locNum(pct, lang) + (lang === 'fa' ? '٪' : '%')
     $('#ring-data-pct').classList.remove('is-infinity')
     const totalF = fmtBytes(limit)
-    $('#stat-total-val').textContent = locNum(totalF.value, lang)
+    animateCount($('#stat-total-val'), parseFloat(totalF.value) || 0, numFmt(totalF.value), snap)
     $('#stat-total-unit').textContent = totalF.unit
     const remF = fmtBytes(Math.max(0, limit - used))
-    $('#stat-remaining-val').textContent = locNum(remF.value, lang)
+    animateCount($('#stat-remaining-val'), parseFloat(remF.value) || 0, numFmt(remF.value), snap)
     $('#stat-remaining-unit').textContent = remF.unit
   }
   if (unlimited) {
@@ -356,12 +412,13 @@ function renderCard() {
     $('#ring-time-pct').classList.add('is-infinity')
     $('#stat-expire-val').textContent = t('never')
     $('#stat-expire-unit').textContent = ''
+    $('#ring-time').classList.remove('is-urgent')
   } else {
     const nowSec = Date.now() / 1000
     const remainingSec = Math.max(0, CTX.expire - nowSec)
-    // We do not get the subscription start time from Rebecca, so infer a sane
-    // total cycle from the remaining duration. This keeps the remaining-time
-    // ring functional on first load instead of always rendering as 100%.
+    // Always derive the remaining duration client-side from `expire`; `remaining_days`
+    // is precomputed server-side without a now() and can be stale by the time the page
+    // loads, so it is only used as a fallback when `expire` is unavailable.
     const remainingDaysForCycle = Math.max(CTX.remainingDays, remainingSec / 86400)
     const cycleDays = remainingDaysForCycle <= 1 ? 1
       : remainingDaysForCycle <= 7 ? 7
@@ -373,11 +430,17 @@ function renderCard() {
     const frac = total > 0 ? clamp(remainingSec / total, 0, 1) : 0
     setRing('ring-time', frac)
     $('#ring-time-pct').classList.remove('is-infinity')
+    // Urgent glow when less than 10% of the cycle remains.
+    $('#ring-time').classList.toggle('is-urgent', frac <= 0.1)
 
+    // Prefer the live client-side computation; fall back to the server value only
+    // when `expire` did not yield a usable remaining duration.
     const days =
-      CTX.remainingDays > 0
-        ? Math.round(CTX.remainingDays)
-        : Math.max(0, Math.ceil(remainingSec / 86400))
+      remainingSec > 0
+        ? Math.max(0, Math.ceil(remainingSec / 86400))
+        : CTX.remainingDays > 0
+          ? Math.round(CTX.remainingDays)
+          : 0
     $('#ring-time-pct').textContent = locNum(days, lang)
     $('#ring-time-days').textContent = days === 1 ? t('day_unit') : t('days_unit')
 
@@ -411,6 +474,9 @@ function renderCard() {
 
   // ---- usage dashboard
   renderUsageDashboard()
+
+  // First paint is done — subsequent renders (e.g. language switch) snap, not tween.
+  cardAnimated = true
 }
 
 /* ---------------------------------------------------------- quota reset timer */
@@ -476,7 +542,8 @@ function renderReset() {
     const ss = Math.floor(diff / 1000)
     const pad = (n) => String(n).padStart(2, '0')
     const parts = []
-    if (dd > 0) parts.push(locNum(dd, lang) + (lang === 'fa' ? 'ر' : 'd'))
+    // Persian: space + full day word ("روز") rather than the stray "ر" glyph.
+    if (dd > 0) parts.push(locNum(dd, lang) + (lang === 'fa' ? ' ' + t('days_unit') : 'd'))
     parts.push(locNum(pad(hh), lang) + ':' + locNum(pad(mm), lang) + ':' + locNum(pad(ss), lang))
     $('#reset-countdown').textContent = parts.join(' ')
   }
@@ -486,11 +553,77 @@ function renderReset() {
 
 /* --------------------------------------------------------- render: configs */
 
+// Config view state: search text, active protocol filter, bulk-selection mode.
+let configSearch = ''
+let configProtocol = 'all'
+let selectionMode = false
+const selectedLinks = new Set()
+
+/** Upper-case protocol scheme of a config URI (VLESS, VMESS, TROJAN, SS, …). */
+function protocolOf(uri) {
+  const m = uri.match(/^([a-z0-9+.-]+):/i)
+  return m ? m[1].toUpperCase() : 'OTHER'
+}
+
+/** Links passing the current search + protocol filter, carrying their 1-based index. */
+function filteredConfigs() {
+  const q = configSearch.trim().toLowerCase()
+  return CTX.links
+    .map((link, i) => ({ link, i, name: labelForConfig(link, i), proto: protocolOf(link) }))
+    .filter((r) => configProtocol === 'all' || r.proto === configProtocol)
+    .filter(
+      (r) =>
+        !q ||
+        r.name.toLowerCase().includes(q) ||
+        r.proto.toLowerCase().includes(q) ||
+        r.link.toLowerCase().includes(q),
+    )
+}
+
+/** Build the All / protocol filter pills from the protocols actually present. */
+function renderConfigFilters() {
+  const wrap = $('#config-filters')
+  if (!wrap) return
+  const protos = []
+  CTX.links.forEach((l) => {
+    const p = protocolOf(l)
+    if (!protos.includes(p)) protos.push(p)
+  })
+  // Hide the bar entirely when there is nothing meaningful to filter.
+  if (CTX.links.length === 0 || protos.length <= 1) {
+    wrap.innerHTML = ''
+    wrap.classList.add('hidden')
+    return
+  }
+  wrap.classList.remove('hidden')
+  if (!protos.includes(configProtocol)) configProtocol = 'all'
+
+  const pills = [['all', t('filter_all')], ...protos.map((p) => [p, p])]
+  wrap.innerHTML = pills
+    .map(
+      ([val, label]) =>
+        `<button class="filter-pill" role="tab" data-proto="${escapeAttr(val)}" ` +
+        `aria-selected="${val === configProtocol}">${escapeHtml(label)}</button>`,
+    )
+    .join('')
+  $$('.filter-pill', wrap).forEach((btn) => {
+    btn.addEventListener('click', () => {
+      configProtocol = btn.getAttribute('data-proto')
+      renderConfigFilters()
+      renderConfigs()
+    })
+  })
+}
+
 function renderConfigs() {
   const list = $('#configs-list')
   const links = CTX.links
   $('#configs-count').textContent = locNum(links.length, lang)
   list.innerHTML = ''
+  list.classList.toggle('is-selecting', selectionMode)
+
+  updateConfigButtons()
+  updateSelectionBar()
 
   if (!links.length) {
     const empty = document.createElement('div')
@@ -500,11 +633,24 @@ function renderConfigs() {
     return
   }
 
-  links.forEach((link, i) => {
-    const name = labelForConfig(link, i)
+  const rows = filteredConfigs()
+  if (!rows.length) {
+    const empty = document.createElement('div')
+    empty.className = 'muted text-sm py-4 text-center'
+    empty.textContent = t('no_match')
+    list.appendChild(empty)
+    return
+  }
+
+  rows.forEach(({ link, i, name }) => {
     const row = document.createElement('div')
     row.className = 'config-row'
+    row.setAttribute('tabindex', '0')
+    row.dataset.link = link
     row.innerHTML = `
+      <label class="config-check" aria-label="${t('select_label')}">
+        <input type="checkbox" ${selectedLinks.has(link) ? 'checked' : ''} />
+      </label>
       <div class="config-meta">
         <span class="config-index">${locNum(i + 1, lang)}</span>
         <div class="config-name" title="${escapeAttr(link)}">${escapeHtml(name)}</div>
@@ -513,15 +659,99 @@ function renderConfigs() {
         <button class="icon-btn" data-act="qr" aria-label="${t('show_qr')}">${icon('qr')}</button>
         <button class="icon-btn" data-act="copy" aria-label="${t('copy')}">${icon('copy')}</button>
       </div>`
-    row.querySelector('[data-act=copy]').addEventListener('click', async () => {
+    row.querySelector('[data-act=copy]').addEventListener('click', async (e) => {
+      e.stopPropagation()
       const ok = await copyText(link)
       toast(ok ? t('copied') : '✕')
     })
-    row.querySelector('[data-act=qr]').addEventListener('click', () => {
+    row.querySelector('[data-act=qr]').addEventListener('click', (e) => {
+      e.stopPropagation()
       openQr(name, link)
+    })
+    const cb = row.querySelector('input[type=checkbox]')
+    cb.addEventListener('change', () => {
+      if (cb.checked) selectedLinks.add(link)
+      else selectedLinks.delete(link)
+      updateSelectionBar()
     })
     list.appendChild(row)
   })
+}
+
+/** Enable/disable the bulk action buttons when there are zero configs. */
+function updateConfigButtons() {
+  const empty = !CTX.links.length
+  ;['#copy-all', '#sub-qr-btn', '#config-export', '#config-select-toggle'].forEach((sel) => {
+    const el = $(sel)
+    if (!el) return
+    el.classList.toggle('is-disabled', empty)
+    if (empty) el.setAttribute('disabled', '')
+    else el.removeAttribute('disabled')
+  })
+}
+
+function updateSelectionBar() {
+  const bar = $('#selection-bar')
+  if (!bar) return
+  bar.classList.toggle('hidden', !selectionMode)
+  $('#selection-count').textContent = locNum(selectedLinks.size, lang)
+  const copyBtn = $('#copy-selected')
+  if (copyBtn) copyBtn.classList.toggle('is-disabled', selectedLinks.size === 0)
+}
+
+function toggleSelectionMode() {
+  selectionMode = !selectionMode
+  if (!selectionMode) selectedLinks.clear()
+  const btn = $('#config-select-toggle')
+  if (btn) {
+    btn.setAttribute('aria-pressed', String(selectionMode))
+    const label = btn.querySelector('[data-i18n-dyn]')
+    if (label) {
+      label.setAttribute('data-i18n-dyn', selectionMode ? 'select_done' : 'select_label')
+      label.textContent = t(selectionMode ? 'select_done' : 'select_label')
+    }
+  }
+  renderConfigs()
+}
+
+/** Download all configs as a plain-text file (one URI per line). */
+function exportConfigs() {
+  if (!CTX.links.length) return
+  const blob = new Blob([CTX.links.join('\n') + '\n'], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const safeName = (CTX.username || 'vortex').replace(/[^a-z0-9_-]+/gi, '_')
+  a.download = safeName + '-configs.txt'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  toast(t('export_done'))
+}
+
+/** Arrow-key navigation across config rows: ↑/↓ move, Enter copies, Space → QR. */
+function onConfigKeydown(e) {
+  const rows = $$('#configs-list .config-row')
+  if (!rows.length) return
+  const active = document.activeElement
+  const idx = rows.indexOf(active)
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    rows[idx < 0 ? 0 : Math.min(rows.length - 1, idx + 1)].focus()
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    rows[idx <= 0 ? 0 : idx - 1].focus()
+  } else if (idx >= 0 && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) {
+    const link = active.dataset.link
+    if (!link) return
+    e.preventDefault()
+    if (e.key === 'Enter') {
+      copyText(link).then((ok) => toast(ok ? t('copied') : '✕'))
+    } else {
+      openQr(labelForConfig(link, 0), link)
+    }
+  }
 }
 
 /** Derive a friendly label from a config URI (protocol + #fragment remark). */
@@ -553,22 +783,37 @@ function osIconName(osId) {
   }[osId] || 'download'
 }
 
-function renderApps() {
-  if (appsRendered) return
-  appsRendered = true
+function renderApps(force) {
+  // First call renders; later calls only re-render when explicitly forced (e.g. a
+  // language switch) AND the section was already built, so labels follow the language
+  // without losing the user's expand/collapse choices (Bug #2).
+  if (appsRendered && !force) return
+  if (force && !appsRendered) return
   const wrap = $('#apps-list')
+
+  // Preserve which OS groups are open across a forced re-render.
+  const openState = {}
+  $$('.os-group', wrap).forEach((g) => {
+    const head = g.querySelector('.os-head')
+    const id = g.dataset.os
+    if (head && id) openState[id] = head.getAttribute('aria-expanded') === 'true'
+  })
+
+  appsRendered = true
   wrap.innerHTML = ''
   const osList = (APPS && APPS.os) || []
 
   osList.forEach((group, gi) => {
+    const expanded = group.id in openState ? openState[group.id] : gi === 0
     const section = document.createElement('div')
     section.className = 'os-group'
+    section.dataset.os = group.id
     section.innerHTML = `
-      <button class="os-head" data-act="toggle" aria-expanded="${gi === 0}">
+      <button class="os-head" data-act="toggle" aria-expanded="${expanded}">
         <span class="os-name"><span class="os-icon">${icon(osIconName(group.id))}</span>${escapeHtml(group.name)}</span>
         <span class="os-chevron">${icon('chevron')}</span>
       </button>
-      <div class="os-body${gi === 0 ? '' : ' hidden'}"></div>`
+      <div class="os-body${expanded ? '' : ' hidden'}"></div>`
     const body = section.querySelector('.os-body')
     const list = document.createElement('div')
     if (group.apps.length > 3) list.className = 'apps-scroll'
@@ -671,18 +916,117 @@ function renderOnlineBadge() {
 /* --------------------------------------------------------- usage dashboard */
 
 let usageHistory = null
+let usageUpdatedAt = 0 // epoch ms of the data currently shown
+let usageStale = false // true when showing cached data we couldn't refresh
+
+const USAGE_CACHE_KEY = 'vortex:usage'
+
+/** Pull a {history:[…]} / [...] payload out of a parsed JS value. */
+function pickUsageArray(data) {
+  if (Array.isArray(data)) return data
+  if (data && typeof data === 'object') return data.history || data.data || data.usages || null
+  return null
+}
+
+/**
+ * Rebecca's usage endpoint may answer with JSON *or* an HTML panel page. We ask for
+ * JSON via the Accept header, but if HTML comes back we scrape an embedded
+ * `<script type="application/json">` data block (or a window.__USAGE__ = {...} blob)
+ * before giving up. (Bug #1)
+ */
+function parseUsageFromHtml(html) {
+  // 1) <script type="application/json" id="…usage…">{…}</script>
+  const re = /<script[^>]*type=["']application\/json["'][^>]*>([\s\S]*?)<\/script>/gi
+  let m
+  while ((m = re.exec(html))) {
+    try {
+      const arr = pickUsageArray(JSON.parse(m[1].trim()))
+      if (arr && arr.length) return arr
+    } catch (e) {
+      /* keep scanning other blocks */
+    }
+  }
+  // 2) a JS assignment such as `window.__USAGE__ = {…}` or `var usage = [...]`
+  const assign = html.match(/(?:__USAGE__|usageHistory|usage)\s*=\s*(\[[\s\S]*?\]|\{[\s\S]*?\})\s*[;\n]/i)
+  if (assign) {
+    try {
+      const arr = pickUsageArray(JSON.parse(assign[1]))
+      if (arr && arr.length) return arr
+    } catch (e) {
+      /* fall through */
+    }
+  }
+  return null
+}
+
+function cacheUsage(data) {
+  persist(USAGE_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }))
+}
+
+function readCachedUsage() {
+  try {
+    const raw = read(USAGE_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (parsed && Array.isArray(parsed.data)) return parsed
+  } catch (e) {
+    /* ignore corrupt cache */
+  }
+  return null
+}
 
 async function loadUsageHistory() {
   if (!CTX.usageUrl) return
   try {
-    const res = await fetch(CTX.usageUrl, { cache: 'no-store' })
-    if (!res.ok) return
-    const data = await res.json()
-    // Accept either an array of {date, used} or {history: [...]}.
-    usageHistory = Array.isArray(data) ? data : data.history || data.data || null
+    const res = await fetch(CTX.usageUrl, {
+      cache: 'no-store',
+      credentials: 'same-origin', // Rebecca may gate usage behind a session cookie (Bug #16)
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error('usage HTTP ' + res.status)
+
+    const ctype = (res.headers.get('content-type') || '').toLowerCase()
+    const body = await res.text()
+    let arr = null
+    if (ctype.includes('application/json') || /^\s*[[{]/.test(body)) {
+      try {
+        arr = pickUsageArray(JSON.parse(body))
+      } catch (e) {
+        arr = parseUsageFromHtml(body) // JSON content-type but malformed → try scraping
+      }
+    } else {
+      arr = parseUsageFromHtml(body) // HTML panel page (Bug #1)
+    }
+
+    if (arr && arr.length) {
+      usageHistory = arr
+      usageUpdatedAt = Date.now()
+      usageStale = false
+      cacheUsage(arr)
+      return
+    }
+    // Parsed but empty/garbage — fall through to cached/empty handling.
+    console.warn('[vortex] usage endpoint returned no parseable history')
+    usageHistory = arr || []
   } catch (e) {
-    usageHistory = null
+    console.warn('[vortex] usage history fetch failed:', e && e.message)
+    // Feature #4: fall back to the last successfully cached payload, flagged stale.
+    const cached = readCachedUsage()
+    if (cached) {
+      usageHistory = cached.data
+      usageUpdatedAt = cached.ts
+      usageStale = true
+    } else if (usageHistory == null) {
+      usageHistory = null
+    }
   }
+}
+
+function dateOf(r) {
+  return new Date(r.date || r.day || r.t)
+}
+function usageValOf(r) {
+  return num(r.used || r.value || r.bytes || r.total)
 }
 
 function renderUsageDashboard() {
@@ -690,44 +1034,88 @@ function renderUsageDashboard() {
   const chart = $('#usage-chart')
   const alert = $('#usage-alert')
   const period = $('#usage-period')
+  const updated = $('#usage-updated')
   if (!dash || !chart) return
 
-  if (!usageHistory || !usageHistory.length) {
+  // Hide entirely only when we never had a usage endpoint or it produced null.
+  if (usageHistory == null) {
     dash.classList.add('hidden')
     return
   }
   dash.classList.remove('hidden')
 
+  // Feature #4 — show "Last updated" (and a stale badge when offline-cached).
+  if (updated) {
+    if (usageUpdatedAt) {
+      const d = new Date(usageUpdatedAt)
+      const stamp = `${fmtDate(d, lang, { month: 'short' })} ${locNum(
+        String(d.getHours()).padStart(2, '0'),
+        lang,
+      )}:${locNum(String(d.getMinutes()).padStart(2, '0'), lang)}`
+      updated.textContent = `${t('last_updated')}: ${stamp}`
+      updated.classList.toggle('is-stale', usageStale)
+      updated.classList.remove('hidden')
+    } else {
+      updated.classList.add('hidden')
+    }
+  }
+
+  // Bug #1 — empty (but present) history shows a message rather than vanishing.
+  if (!usageHistory.length) {
+    chart.innerHTML = ''
+    chart.setAttribute('aria-label', t('no_usage_data'))
+    chart.classList.add('is-empty')
+    chart.textContent = t('no_usage_data')
+    if (period) period.textContent = ''
+    if (alert) alert.classList.add('hidden')
+    return
+  }
+  chart.classList.remove('is-empty')
+
   // Keep last 30 entries, sorted ascending by date.
   const rows = usageHistory
     .slice()
-    .sort((a, b) => new Date(a.date || a.day || a.t) - new Date(b.date || b.day || b.t))
+    .sort((a, b) => dateOf(a) - dateOf(b))
     .slice(-30)
-  const max = Math.max(1, ...rows.map((r) => num(r.used || r.value || r.bytes || r.total)))
+  const max = Math.max(1, ...rows.map(usageValOf))
 
-  // Build SVG bar chart.
+  // Build interactive SVG bar chart with per-bar <title> tooltips (Bug #1, #14).
   const W = 300
   const H = 80
   const pad = 4
   const barW = (W - pad * 2) / rows.length - 2
   let rects = ''
   rows.forEach((r, i) => {
-    const v = num(r.used || r.value || r.bytes || r.total)
+    const v = usageValOf(r)
     const h = (v / max) * (H - 10)
     const x = pad + i * (barW + 2)
     const y = H - h
-    rects += `<rect x="${x}" y="${y}" width="${Math.max(1, barW)}" height="${h}" rx="2" />`
+    const d = dateOf(r)
+    const dLabel = isNaN(d) ? '' : fmtDate(d, lang, { month: 'short' })
+    const vf = fmtBytes(v)
+    const tip = `${locNum(vf.value, lang)} ${vf.unit}${dLabel ? ' ' + t('usage_on') + ' ' + dLabel : ''}`
+    rects +=
+      `<rect x="${x}" y="${y.toFixed(2)}" width="${Math.max(1, barW).toFixed(2)}" ` +
+      `height="${Math.max(0, h).toFixed(2)}" rx="2"><title>${escapeHtml(tip)}</title></rect>`
   })
-  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${rects}</svg>`
+  const totalF = fmtBytes(rows.reduce((s, r) => s + usageValOf(r), 0))
+  chart.setAttribute(
+    'aria-label',
+    `${t('usage_history')} — ${rows.length} ${t('days_unit')}, ${t('total')} ${locNum(
+      totalF.value,
+      lang,
+    )} ${totalF.unit}`,
+  )
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img">${rects}</svg>`
 
   // Period label.
-  const first = new Date(rows[0].date || rows[0].day || rows[0].t)
-  const last = new Date(rows[rows.length - 1].date || rows[rows.length - 1].day || rows[rows.length - 1].t)
-  if (period && first && last && !isNaN(first) && !isNaN(last)) {
+  const first = dateOf(rows[0])
+  const last = dateOf(rows[rows.length - 1])
+  if (period && !isNaN(first) && !isNaN(last)) {
     period.textContent = `${fmtDate(first, lang, { month: 'short' })} – ${fmtDate(last, lang, { month: 'short' })}`
   }
 
-  // Usage alert thresholds.
+  // Usage alert thresholds — fully localized (Bug #7).
   const limit = CTX.dataLimit
   if (limit > 0) {
     const pct = CTX.usedTraffic / limit
@@ -735,13 +1123,13 @@ function renderUsageDashboard() {
     let msg = ''
     if (pct >= 0.9) {
       level = 'danger'
-      msg = t('limited_note')
+      msg = t('usage_alert_90')
     } else if (pct >= 0.8) {
       level = 'warning'
-      msg = '80% ' + t('data_usage').toLowerCase()
+      msg = t('usage_alert_80')
     } else if (pct >= 0.5) {
       level = 'notice'
-      msg = '50% ' + t('data_usage').toLowerCase()
+      msg = t('usage_alert_50')
     }
     if (level) {
       alert.className = 'usage-alert usage-alert-' + level
@@ -761,8 +1149,12 @@ function renderDynamic() {
   renderBrand()
   renderOnlineBadge()
   renderCard()
+  renderConfigFilters()
   renderConfigs()
-  // app import/download labels
+  // Re-render apps so import/download labels follow the language (Bug #2). The APPS
+  // data is static; only the DOM is rebuilt, and only if the section was opened.
+  renderApps(true)
+  // i18n-dyn labels (config tools, app buttons, selection bar).
   $$('[data-i18n-dyn]').forEach((el) => {
     el.textContent = t(el.getAttribute('data-i18n-dyn'))
   })
@@ -779,18 +1171,122 @@ function escapeHtml(s) {
     "'": '&#39;',
   })[c])
 }
+
+/**
+ * Strict attribute encoder for href/src/title values. Beyond the five HTML
+ * specials, this entity-encodes every non-alphanumeric ASCII character (backticks,
+ * newlines, parentheses, etc.) so a hostile config remark can never break out of a
+ * quoted attribute or smuggle an event handler. Safe URL chars are preserved so
+ * deep links and subscription URLs stay clickable.
+ */
 function escapeAttr(s) {
-  return escapeHtml(s)
+  return String(s).replace(/[^a-zA-Z0-9]/g, (c) => {
+    const code = c.charCodeAt(0)
+    // Keep characters that are legal and meaningful inside a URL attribute value.
+    if ('-._~:/?#[]@!$&\'()*+,;=%'.indexOf(c) !== -1) {
+      // …but still neutralise the three that matter in attribute context.
+      if (c === '&') return '&amp;'
+      if (c === "'") return '&#39;'
+      return c
+    }
+    return '&#' + code + ';'
+  })
+}
+
+/** UTF-8 safe base64 (replaces the deprecated unescape()/escape() idiom). */
+function utf8ToBase64(str) {
+  const bytes = new TextEncoder().encode(String(str))
+  let binary = ''
+  bytes.forEach((b) => (binary += String.fromCharCode(b)))
+  return btoa(binary)
 }
 
 /* ------------------------------------------------------------------- offline */
 
 function wireOffline() {
   const banner = $('#offline-banner')
-  const update = () => banner.classList.toggle('hidden', navigator.onLine)
+  const update = () => {
+    banner.classList.toggle('hidden', navigator.onLine)
+    checkConnection()
+  }
   window.addEventListener('online', update)
   window.addEventListener('offline', update)
   update()
+}
+
+/* --------------------------------------------------- connection quality (F#9) */
+
+/**
+ * A lightweight "ping" indicator: time a no-cors round-trip to the subscription
+ * origin and classify it good / fair / poor, blending in the Network Information
+ * API hint when present. Best-effort and never throws into the UI.
+ */
+async function checkConnection() {
+  const el = $('#conn-indicator')
+  if (!el) return
+  el.classList.remove('hidden')
+  const set = (q, key) => {
+    el.setAttribute('data-quality', q)
+    el.setAttribute('title', t(key))
+    el.setAttribute('aria-label', t(key))
+  }
+
+  if (!navigator.onLine) {
+    set('offline', 'conn_offline')
+    return
+  }
+  set('checking', 'conn_checking')
+
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection
+  const target = (CTX && CTX.subUrl) || location.href
+  const start = performance.now()
+  try {
+    await fetch(target, { method: 'HEAD', cache: 'no-store', mode: 'no-cors', credentials: 'same-origin' })
+  } catch (e) {
+    try {
+      await fetch(target, { cache: 'no-store', mode: 'no-cors' })
+    } catch (e2) {
+      set('poor', 'conn_poor')
+      return
+    }
+  }
+  const ms = performance.now() - start
+  let q = 'good'
+  let key = 'conn_good'
+  if (ms > 1200) {
+    q = 'poor'
+    key = 'conn_poor'
+  } else if (ms > 450) {
+    q = 'ok'
+    key = 'conn_ok'
+  }
+  if (conn && (conn.effectiveType === '2g' || conn.effectiveType === 'slow-2g')) {
+    q = 'poor'
+    key = 'conn_poor'
+  }
+  set(q, key)
+}
+
+/* ------------------------------------------------ usage auto-refresh (F#10) */
+
+let usageRefreshAt = 0
+const USAGE_REFRESH_MS = 5 * 60 * 1000
+
+function startUsageAutoRefresh() {
+  if (!CTX.usageUrl) return
+  usageRefreshAt = Date.now()
+  const tick = async () => {
+    // Only refresh while the tab is visible and the interval has elapsed.
+    if (document.visibilityState !== 'visible') return
+    if (Date.now() - usageRefreshAt < USAGE_REFRESH_MS) return
+    usageRefreshAt = Date.now()
+    await loadUsageHistory()
+    renderUsageDashboard()
+  }
+  setInterval(tick, 30 * 1000)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') tick()
+  })
 }
 
 /* --------------------------------------------------------------- bootstrap */
@@ -829,17 +1325,48 @@ function wireControls() {
     const ok = await copyText(CTX.links.join('\n'))
     toast(ok ? t('copied') : '✕')
   })
-  $('#sub-qr-btn').addEventListener('click', () => openQr(t('sub_link'), CTX.subUrl))
+  $('#sub-qr-btn').addEventListener('click', () => {
+    if (!CTX.links.length) return
+    openQr(t('sub_link'), CTX.subUrl)
+  })
 
-  // configs / apps section collapse
+  // Config search (Feature #1) — filter rows live as the user types.
+  const search = $('#config-search')
+  if (search) {
+    search.addEventListener('input', () => {
+      configSearch = search.value || ''
+      renderConfigs()
+    })
+  }
+  // Export configs to a .txt file (Feature #3).
+  const exportBtn = $('#config-export')
+  if (exportBtn) exportBtn.addEventListener('click', exportConfigs)
+  // Bulk-selection mode (Feature #8).
+  const selBtn = $('#config-select-toggle')
+  if (selBtn) selBtn.addEventListener('click', toggleSelectionMode)
+  const copySel = $('#copy-selected')
+  if (copySel) {
+    copySel.addEventListener('click', async () => {
+      if (!selectedLinks.size) return
+      const ok = await copyText(Array.from(selectedLinks).join('\n'))
+      toast(ok ? t('copied') : '✕')
+    })
+  }
+  // Keyboard navigation across config rows (Feature #7).
+  const list = $('#configs-list')
+  if (list) list.addEventListener('keydown', onConfigKeydown)
+
+  // configs / apps section collapse (Bug #15: persist open/closed state).
   $$('[data-collapse]').forEach((head) => {
     head.addEventListener('click', () => {
-      const target = $('#' + head.getAttribute('data-collapse'))
+      const id = head.getAttribute('data-collapse')
+      const target = $('#' + id)
       const expanded = head.getAttribute('aria-expanded') !== 'false'
       head.setAttribute('aria-expanded', String(!expanded))
       target.classList.toggle('hidden', expanded)
+      persist('vortex:collapse:' + id, expanded ? 'closed' : 'open')
       // Lazy-load apps when the section is opened.
-      if (head.getAttribute('data-collapse') === 'apps-body' && !expanded) {
+      if (id === 'apps-body' && !expanded) {
         lazyLoadApps()
       }
     })
@@ -870,38 +1397,84 @@ function wireControls() {
   })
 }
 
-function registerServiceWorker() {
-  if ('serviceWorker' in navigator) {
-    // Inline a minimal SW as a data-URI so we stay self-contained.
-    const swSrc =
-      "self.addEventListener('install',function(e){self.skipWaiting()});" +
-      "self.addEventListener('activate',function(e){e.waitUntil(self.clients.claim())});" +
-      "self.addEventListener('fetch',function(e){e.respondWith(fetch(e.request).catch(function(){return new Response('Offline',{status:503})}))});"
-    const blob = new Blob([swSrc], { type: 'application/javascript' })
-    const url = URL.createObjectURL(blob)
-    navigator.serviceWorker.register(url).catch(() => {})
+/** Read a resolved theme token (e.g. --paper) for PWA/meta colours. */
+function themeColor(name, fallback) {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+    return v || fallback
+  } catch (e) {
+    return fallback
   }
 }
 
+/** Restore persisted open/closed state of collapsible sections (Bug #15). */
+function restoreCollapseState() {
+  $$('[data-collapse]').forEach((head) => {
+    const id = head.getAttribute('data-collapse')
+    const saved = read('vortex:collapse:' + id)
+    if (saved !== 'open' && saved !== 'closed') return
+    const target = $('#' + id)
+    const open = saved === 'open'
+    head.setAttribute('aria-expanded', String(open))
+    if (target) target.classList.toggle('hidden', !open)
+    if (id === 'apps-body' && open) lazyLoadApps()
+  })
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return
+  // Bug #6: if a controller already exists, this page is already covered — skip to
+  // avoid spawning a fresh registration for every (blob-URL changing) page load.
+  if (navigator.serviceWorker.controller) return
+
+  navigator.serviceWorker
+    .getRegistrations()
+    .then((regs) => {
+      if (regs && regs.length) return // already registered in a previous load
+      // Inline a minimal SW as a blob so we stay self-contained.
+      const swSrc =
+        "self.addEventListener('install',function(e){self.skipWaiting()});" +
+        "self.addEventListener('activate',function(e){e.waitUntil(self.clients.claim())});" +
+        "self.addEventListener('fetch',function(e){e.respondWith(fetch(e.request).catch(function(){return new Response('Offline',{status:503})}))});"
+      const blob = new Blob([swSrc], { type: 'application/javascript' })
+      const url = URL.createObjectURL(blob)
+      // Bug #4: revoke the blob URL once the registration settles so it can't leak.
+      navigator.serviceWorker
+        .register(url)
+        .catch(() => {})
+        .then(() => URL.revokeObjectURL(url))
+    })
+    .catch(() => {})
+}
+
+let manifestUrl = null
+
 function installManifest() {
   // Register a manifest dynamically so the page remains fully self-contained.
+  // Bug #13: colours track the active theme tokens rather than being hardcoded.
   const manifest = {
     name: CTX.brandName || 'Vortex',
     short_name: CTX.brandName || 'Vortex',
     start_url: '.',
     display: 'standalone',
-    background_color: '#f3eee1',
-    theme_color: '#111111',
+    background_color: themeColor('--paper', '#f3eee1'),
+    theme_color: themeColor('--ink', '#111111'),
   }
   const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
+  // Bug #4: revoke the previous manifest blob before swapping in a new one.
+  if (manifestUrl) URL.revokeObjectURL(manifestUrl)
+  manifestUrl = URL.createObjectURL(blob)
   let link = document.querySelector('link[rel="manifest"]')
   if (!link) {
     link = document.createElement('link')
     link.rel = 'manifest'
     document.head.appendChild(link)
   }
-  link.href = url
+  link.href = manifestUrl
+
+  // Keep the browser chrome colour in sync with the theme too.
+  const meta = document.querySelector('meta[name="theme-color"]')
+  if (meta) meta.setAttribute('content', themeColor('--paper', '#111111'))
 }
 
 function reveal() {
@@ -929,32 +1502,64 @@ function fillIcons() {
   })
 }
 
-async function init() {
-  CTX = readContext()
-  STATE = deriveState(CTX)
-
-  fillIcons()
-  resolvePrefs()
-  document.documentElement.setAttribute('data-theme', theme)
-  setTheme(theme)
-  setLang(lang) // also applies i18n + first dynamic render
-
-  renderBrand()
-  renderOnlineBadge()
-  renderLinks()
-  wireControls()
-  wireOffline()
-  installManifest()
-  registerServiceWorker()
-
-  // Load usage history asynchronously; it will render when ready.
-  await loadUsageHistory()
-  renderUsageDashboard()
-
-  requestAnimationFrame(() => {
+/** Surface a friendly error state instead of a blank/crashed page (Bug #8). */
+function showErrorState(err) {
+  try {
+    console.error('[vortex] init failed:', err)
+    const banner = $('#error-banner')
+    if (banner) {
+      const titleEl = $('#error-title')
+      const msgEl = $('#error-msg')
+      if (titleEl) titleEl.textContent = t('error_title')
+      if (msgEl) msgEl.textContent = t('error_msg')
+      banner.classList.remove('hidden')
+    }
+  } catch (e) {
+    /* last-resort: nothing else we can safely do */
+  }
+  // Always clear the splash so the user is never stuck on the loader.
+  try {
     hideSplash()
-    reveal()
-  })
+  } catch (e) {
+    const splash = $('#splash')
+    if (splash) splash.remove()
+  }
+}
+
+async function init() {
+  try {
+    CTX = readContext()
+    STATE = deriveState(CTX)
+
+    fillIcons()
+    resolvePrefs()
+    document.documentElement.setAttribute('data-theme', theme)
+    setTheme(theme)
+    setLang(lang) // also applies i18n + first dynamic render
+
+    renderBrand()
+    renderOnlineBadge()
+    renderLinks()
+    restoreCollapseState()
+    lazyLoadApps() // set up the apps observer (no-op if already rendered)
+    wireControls()
+    wireOffline()
+    installManifest()
+    registerServiceWorker()
+    checkConnection()
+
+    // Load usage history asynchronously; it will render when ready.
+    await loadUsageHistory()
+    renderUsageDashboard()
+    startUsageAutoRefresh()
+
+    requestAnimationFrame(() => {
+      hideSplash()
+      reveal()
+    })
+  } catch (err) {
+    showErrorState(err)
+  }
 }
 
 if (document.readyState === 'loading') {
