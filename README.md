@@ -123,6 +123,18 @@ vortex/
 
 ## Changelog
 
+### v1.3.1
+
+- **Usage dashboard now reads Rebecca's real payload** — the daily bars are parsed
+  from `usages[].used_traffic` (with `uplink + downlink` as a fallback), fixing the
+  empty in-card chart.
+- Removed the footer **Usage** button that opened Rebecca's raw JSON endpoint in a
+  new tab; the in-card chart is the canonical usage view.
+- Larger, bolder traffic stat numbers; in Persian/RTL the unit (e.g. GB) now stays
+  to the right of the value.
+- Replaced the unlimited (∞) glyph with a cleaner standard bold infinity, and the
+  Android icon with the official Android robot logo.
+
 ### v1.3.0
 
 **Fixes**

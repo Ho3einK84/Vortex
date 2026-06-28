@@ -882,15 +882,15 @@ function lazyLoadApps() {
 
 function renderLinks() {
   const sup = $('#support-link')
-  const usg = $('#usage-link')
-  if (CTX.supportUrl) {
-    sup.href = CTX.supportUrl
-    sup.classList.remove('hidden')
-  } else sup.classList.add('hidden')
-  if (CTX.usageUrl) {
-    usg.href = CTX.usageUrl
-    usg.classList.remove('hidden')
-  } else usg.classList.add('hidden')
+  if (sup) {
+    if (CTX.supportUrl) {
+      sup.href = CTX.supportUrl
+      sup.classList.remove('hidden')
+    } else sup.classList.add('hidden')
+  }
+  // The footer "Usage" button used to open Rebecca's raw JSON endpoint in a new tab;
+  // the in-card usage dashboard now renders that data as a chart, so the external
+  // link is intentionally gone to avoid showing the bare JSON page.
 }
 
 function renderBrand() {
@@ -1026,7 +1026,22 @@ function dateOf(r) {
   return new Date(r.date || r.day || r.t)
 }
 function usageValOf(r) {
-  return num(r.used || r.value || r.bytes || r.total)
+  // Rebecca emits `used_traffic`; other panels use used/value/bytes/total. As a last
+  // resort, sum uplink+downlink when only directional counters are present.
+  if (r == null) return 0
+  const direct =
+    r.used_traffic != null
+      ? r.used_traffic
+      : r.used != null
+        ? r.used
+        : r.value != null
+          ? r.value
+          : r.bytes != null
+            ? r.bytes
+            : r.total
+  if (direct != null) return num(direct)
+  if (r.uplink != null || r.downlink != null) return num(r.uplink) + num(r.downlink)
+  return 0
 }
 
 function renderUsageDashboard() {
