@@ -62,6 +62,38 @@ export const STRINGS = {
     limited_note: 'Data limit reached. Traffic is paused until reset or upgrade.',
     disabled_note: 'This subscription is disabled. Contact support.',
     on_hold_note: 'This subscription is on hold and not yet started.',
+
+    // v1.3.0 — usage alerts (localized thresholds)
+    usage_alert_50: '50% data used',
+    usage_alert_80: '80% data used',
+    usage_alert_90: '90% data used — limit reached soon',
+    no_usage_data: 'No usage data yet',
+    last_updated: 'Last updated',
+    usage_on: 'on',
+
+    // v1.3.0 — config tools (search / sort / export / selection)
+    search_configs: 'Search configs…',
+    filter_all: 'All',
+    export_label: 'Export',
+    export_done: 'Configs exported',
+    select_label: 'Select',
+    select_done: 'Done',
+    copy_selected: 'Copy selected',
+    selected_suffix: 'selected',
+    no_match: 'No configs match your search.',
+
+    // v1.3.0 — connection quality
+    conn_checking: 'Checking connection…',
+    conn_good: 'Good connection',
+    conn_ok: 'Fair connection',
+    conn_poor: 'Poor connection',
+    conn_offline: 'No connection',
+
+    // v1.3.0 — QR + error boundary
+    qr_too_long: 'Link too long for a QR code — use Copy instead.',
+    error_title: 'Something went wrong',
+    error_msg: 'The page failed to load fully. Please refresh to try again.',
+    external_link: 'Opens in a new tab',
   },
   fa: {
     dir: 'rtl',
@@ -123,6 +155,38 @@ export const STRINGS = {
     limited_note: 'حجم به پایان رسیده است. ترافیک تا بازنشانی یا ارتقا متوقف است.',
     disabled_note: 'این اشتراک غیرفعال است. با پشتیبانی تماس بگیرید.',
     on_hold_note: 'این اشتراک در حالت انتظار است و هنوز شروع نشده.',
+
+    // v1.3.0 — usage alerts (localized thresholds)
+    usage_alert_50: '۵۰٪ حجم مصرف شده',
+    usage_alert_80: '۸۰٪ حجم مصرف شده',
+    usage_alert_90: '۹۰٪ حجم مصرف شده — به‌زودی به سقف می‌رسید',
+    no_usage_data: 'هنوز داده مصرفی ثبت نشده',
+    last_updated: 'آخرین بروزرسانی',
+    usage_on: 'در',
+
+    // v1.3.0 — config tools (search / sort / export / selection)
+    search_configs: 'جست‌وجوی کانفیگ‌ها…',
+    filter_all: 'همه',
+    export_label: 'خروجی',
+    export_done: 'کانفیگ‌ها ذخیره شد',
+    select_label: 'انتخاب',
+    select_done: 'پایان',
+    copy_selected: 'کپی انتخاب‌شده‌ها',
+    selected_suffix: 'انتخاب‌شده',
+    no_match: 'کانفیگی با جست‌وجوی شما مطابقت ندارد.',
+
+    // v1.3.0 — connection quality
+    conn_checking: 'بررسی اتصال…',
+    conn_good: 'اتصال خوب',
+    conn_ok: 'اتصال متوسط',
+    conn_poor: 'اتصال ضعیف',
+    conn_offline: 'بدون اتصال',
+
+    // v1.3.0 — QR + error boundary
+    qr_too_long: 'لینک برای کد QR بسیار بلند است — از کپی استفاده کنید.',
+    error_title: 'مشکلی پیش آمد',
+    error_msg: 'صفحه به‌طور کامل بارگذاری نشد. لطفاً صفحه را تازه‌سازی کنید.',
+    external_link: 'در تب جدید باز می‌شود',
   },
 }
 

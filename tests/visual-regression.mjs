@@ -20,6 +20,16 @@ async function run() {
     ['online count binding present', html.includes('data-online-count')],
     ['usage dashboard markup present', html.includes('usage-dashboard')],
     ['lazy apps placeholder present', html.includes('lazy-placeholder')],
+    // v1.3.0
+    ['theme-flash resolver present', html.includes("getItem('vortex:theme')")],
+    ['config search present', html.includes('id="config-search"')],
+    ['config filters present', html.includes('id="config-filters"')],
+    ['selection bar present', html.includes('id="selection-bar"')],
+    ['export button present', html.includes('id="config-export"')],
+    ['connection indicator present', html.includes('id="conn-indicator"')],
+    ['error banner present', html.includes('id="error-banner"')],
+    ['usage updated indicator present', html.includes('id="usage-updated"')],
+    ['no deprecated unescape(', !html.includes('unescape(encodeURIComponent')],
   ]
   let ok = true
   for (const [name, pass] of checks) {

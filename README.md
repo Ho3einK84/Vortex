@@ -123,6 +123,31 @@ vortex/
 
 ## Changelog
 
+### v1.3.0
+
+**Fixes**
+
+- Usage dashboard now works when Rebecca's `usage_url` answers with an HTML panel page: the fetch sends `Accept: application/json` + `credentials: same-origin`, detects the content-type, and scrapes an embedded `<script type="application/json">` block (or a `window.__USAGE__` blob) as a fallback. Empty history shows a "No usage data yet" message instead of vanishing.
+- Apps section re-renders its import/download labels on language switch.
+- Replaced the deprecated `unescape()` base64 idiom with a `TextEncoder`-based helper, and hardened `escapeAttr()` to entity-encode every unsafe attribute character.
+- Service-worker and manifest blob URLs are now revoked after use; the SW only registers when the page isn't already controlled, preventing duplicate registrations.
+- The remaining-time ring always computes from `expire` client-side, using `remaining_days` only as a fallback.
+- Relaxed config URL validation to accept any scheme-prefixed URI.
+- Blocking theme resolver in `<head>` eliminates the light/dark flash on load.
+- Localized usage alerts and the Persian quota-reset day suffix; PWA/theme-color now track the active theme tokens.
+- QR generator returns a legible fallback tile when a payload exceeds QR capacity.
+- Copy-all / Sub-QR / Export / Select are disabled (and dimmed) when there are no configs.
+- Accessible usage chart: per-bar `<title>` tooltips plus `role="img"` and an `aria-label`.
+- Collapsed/expanded section state and an `init()` error boundary (friendly error banner instead of a blank page).
+
+**New features**
+
+- Config search/filter, protocol filter pills, `.txt` export, and bulk selection with "copy selected".
+- Keyboard navigation across config rows (↑/↓ move, Enter copies, Space opens QR).
+- Offline cache for usage data with a "Last updated" (and stale) indicator, plus auto-refresh every 5 minutes while the tab is visible.
+- Animated count-up stat numbers, an urgent ring glow above 90%, a connection-quality indicator, and external-link icons on the Support/Usage buttons.
+- Added Hiddify to iOS for unified cross-platform coverage.
+
 ### v1.2.1
 
 - Updated Android and Linux OS icons to more closely match the official logos.

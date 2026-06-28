@@ -741,6 +741,200 @@ html[dir='rtl'] .config-name {
   padding: 1rem;
 }
 
+/* ============================================================ v1.3.0 additions */
+
+/* ---- error banner (Bug #8) */
+#error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background: var(--danger);
+  color: #fff;
+  border-bottom: 3px solid var(--ink);
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 0.6rem 0.85rem;
+  line-height: 1.4;
+}
+#error-banner svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+#error-banner strong { display: block; font-weight: 900; }
+
+/* ---- connection quality indicator (Feature #9) */
+.conn-indicator {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: 0.35rem;
+}
+.conn-indicator .conn-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid var(--ink);
+  background: var(--muted);
+  border-radius: 999px;
+}
+.conn-indicator[data-quality='checking'] .conn-dot {
+  background: var(--accent3);
+  animation: conn-pulse 1s ease-in-out infinite;
+}
+.conn-indicator[data-quality='good'] .conn-dot { background: var(--ok); }
+.conn-indicator[data-quality='ok'] .conn-dot { background: var(--accent3); }
+.conn-indicator[data-quality='poor'] .conn-dot { background: var(--accent2); }
+.conn-indicator[data-quality='offline'] .conn-dot { background: var(--danger); }
+@keyframes conn-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ---- ring urgency glow (Feature #6) */
+.ring.is-urgent .ring-value {
+  filter: drop-shadow(0 0 4px var(--danger));
+  animation: ring-glow 1.6s ease-in-out infinite;
+}
+@keyframes ring-glow {
+  0%, 100% { filter: drop-shadow(0 0 2px var(--danger)); }
+  50% { filter: drop-shadow(0 0 7px var(--danger)); }
+}
+
+/* ---- config search + tools (Features #1, #3, #8) */
+.configs-toolbar {
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+.config-search {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  padding: 0.3rem 0.55rem;
+}
+.config-search svg { width: 16px; height: 16px; flex: none; }
+.config-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.config-search input::placeholder { color: var(--muted); opacity: 0.9; }
+.config-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: none;
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  box-shadow: 2px 2px 0 var(--shadow);
+  padding: 0.3rem 0.55rem;
+  font-weight: 800;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: transform 0.07s ease, box-shadow 0.07s ease, background 0.12s ease;
+}
+.config-tool-btn svg { width: 15px; height: 15px; }
+.config-tool-btn:hover { background: var(--accent3); color: #111; }
+.config-tool-btn:active { transform: translate(2px, 2px); box-shadow: none; }
+.config-tool-btn[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ---- protocol filter pills (Feature #2) */
+.config-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.filter-pill {
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.07s ease;
+}
+.filter-pill:active { transform: translate(1px, 1px); }
+.filter-pill[aria-selected='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ---- bulk selection (Feature #8) */
+.selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 2px solid var(--ink);
+  background: var(--accent3);
+  color: #111;
+  padding: 0.35rem 0.6rem;
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+.config-check { display: none; flex: none; align-items: center; }
+#configs-list.is-selecting .config-check { display: inline-flex; }
+.config-check input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* keyboard-navigable config rows */
+.config-row:focus,
+.config-row:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* disabled bulk-action buttons when there are zero configs (Bug #9) */
+.is-disabled,
+[disabled].brutal-btn,
+[disabled].config-tool-btn {
+  opacity: 0.45;
+  pointer-events: none;
+  box-shadow: none;
+}
+
+/* ---- external link indicator (Bug #19) */
+.ext-link .ext-icon { opacity: 0.65; }
+.ext-link .ext-icon svg { width: 13px; height: 13px; }
+
+/* ---- usage dashboard polish (Bug #1, #14; Feature #4) */
+.usage-chart.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.usage-chart rect { cursor: default; }
+.usage-updated {
+  margin-top: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.usage-updated.is-stale { color: var(--accent2); }
+.usage-updated.is-stale::before {
+  content: '●';
+  margin-inline-end: 0.3rem;
+}
+
 /* ---------------------------------------------------- reduced-motion respect */
 @media (prefers-reduced-motion: reduce) {
   *,
