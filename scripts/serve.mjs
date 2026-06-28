@@ -77,33 +77,46 @@ function ctxFor(state) {
   return base
 }
 
-/** A plausible 30-day usage history (bytes/day) for the local dashboard preview. */
+/**
+ * A plausible 30-day usage history matching Rebecca's real payload shape:
+ * `{ usages: [{ date, used_traffic }], node_usages: [...], hourly_usages: [] }`.
+ */
 function sampleUsage() {
-  const out = []
+  const usages = []
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  for (let i = 29; i >= 0; i--) {
+  for (let i = 30; i >= 0; i--) {
     const d = new Date(today)
     d.setDate(d.getDate() - i)
     // Some natural-looking variation, with the odd quiet day.
     const base = 0.3 + Math.abs(Math.sin(i * 0.7)) * 1.6
     const used = i % 9 === 0 ? 0 : Math.floor(base * GB)
-    out.push({ date: d.toISOString().slice(0, 10), used })
+    usages.push({ date: d.toISOString().slice(0, 10), used_traffic: used })
   }
-  return out
+  return {
+    start: new Date(today.getTime() - 30 * DAY * 1000).toISOString(),
+    end: new Date().toISOString(),
+    hourly_usages: [],
+    node_usages: [
+      { node_id: 10, node_name: 'DE🇩🇪', uplink: 0, downlink: 7449106461 },
+      { node_id: 12, node_name: 'FI🇫🇮', uplink: 0, downlink: 20992688 },
+    ],
+    usages,
+    username: 'alice_wonder',
+  }
 }
 
 /** Serve the usage endpoint as JSON, HTML-embedded JSON, or an empty set. */
 function usageResponse(res) {
   if (USAGE === 'empty') {
     res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
-    res.end(JSON.stringify({ history: [] }))
+    res.end(JSON.stringify({ usages: [], node_usages: [], hourly_usages: [] }))
     return
   }
   if (USAGE === 'html') {
     // Emulate Rebecca returning an HTML panel page that embeds the JSON in a
     // <script type="application/json"> block (exercises the scrape fallback).
-    const json = JSON.stringify({ history: sampleUsage() })
+    const json = JSON.stringify(sampleUsage())
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
     res.end(
       `<!doctype html><html><head><title>Usage</title></head><body>` +
@@ -114,7 +127,7 @@ function usageResponse(res) {
     return
   }
   res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
-  res.end(JSON.stringify({ history: sampleUsage() }))
+  res.end(JSON.stringify(sampleUsage()))
 }
 
 /** Minimal pongo2 emulation for exactly the directives Vortex uses. */
