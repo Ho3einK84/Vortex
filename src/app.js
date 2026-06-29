@@ -51,8 +51,13 @@ function readContext() {
       .split(/\r?\n/)
       .map((s) => s.trim())
       // Accept any scheme-prefixed URI (some valid config schemes omit the `//`,
-      // e.g. ss:// vs. proprietary `scheme:` deep links). Just require a scheme.
-      .filter((s) => s && /^[a-z][a-z0-9+.-]*:/i.test(s))
+      // e.g. ss:// vs. proprietary `scheme:` deep links). Require a scheme, but
+      // reject script-bearing schemes so a hostile config line can't smuggle one in.
+      .filter((s) => {
+        if (!s || !/^[a-z][a-z0-9+.-]*:/i.test(s)) return false
+        const scheme = s.slice(0, s.indexOf(':')).toLowerCase()
+        return scheme !== 'javascript' && scheme !== 'data' && scheme !== 'vbscript'
+      })
   }
 
   let subUrl = (d.subscriptionUrl || '').trim()
@@ -361,6 +366,8 @@ function renderCard() {
   $('#username').textContent = CTX.username
   const badge = $('#status-badge')
   badge.textContent = t('status_' + STATE) || t('status_unknown')
+  // Surface the server-provided status_class as a styling hook (was read but unused).
+  if (CTX.statusClass) badge.setAttribute('data-status-class', CTX.statusClass)
   $('#service-card').setAttribute('data-state', STATE)
   $('#app').setAttribute('data-state', STATE)
 
@@ -653,7 +660,7 @@ function renderConfigs() {
       </label>
       <div class="config-meta">
         <span class="config-index">${locNum(i + 1, lang)}</span>
-        <div class="config-name" title="${escapeAttr(link)}">${escapeHtml(name)}</div>
+        <div class="config-name" dir="auto" title="${escapeAttr(link)}">${escapeHtml(name)}</div>
       </div>
       <div class="config-actions">
         <button class="icon-btn" data-act="qr" aria-label="${t('show_qr')}">${icon('qr')}</button>
@@ -749,7 +756,8 @@ function onConfigKeydown(e) {
     if (e.key === 'Enter') {
       copyText(link).then((ok) => toast(ok ? t('copied') : '✕'))
     } else {
-      openQr(labelForConfig(link, 0), link)
+      const realIdx = CTX.links.indexOf(link)
+      openQr(labelForConfig(link, realIdx < 0 ? 0 : realIdx), link)
     }
   }
 }
@@ -1558,10 +1566,11 @@ async function init() {
     restoreCollapseState()
     lazyLoadApps() // set up the apps observer (no-op if already rendered)
     wireControls()
+    // installManifest() is already invoked by setTheme() above (CTX is set), and
+    // wireOffline()'s initial update() calls checkConnection() — so neither is
+    // repeated here (was: a second manifest blob + a second probe on every load).
     wireOffline()
-    installManifest()
     registerServiceWorker()
-    checkConnection()
 
     // Load usage history asynchronously; it will render when ready.
     await loadUsageHistory()
