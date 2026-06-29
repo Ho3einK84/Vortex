@@ -3,6 +3,12 @@
 All notable changes to Vortex are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## v1.4.2
+
+### Added
+- **Usage & expiry notifications** — opt-in browser notifications fire when data consumption crosses **50% / 70% / 90%** of the limit, and when the subscription has **3 days** and **1 day** left. Each milestone notifies once and only re-arms if the metric recovers (e.g. a quota reset or renewal), so there's no spam.
+- **First-load notification opt-in** — a dismissible prompt invites the user to enable alerts; the browser permission is requested from that click (as modern browsers require), and the choice is remembered. Fully localized (EN/FA) and RTL-aware.
+
 ## v1.4.1
 
 ### Added
