@@ -207,6 +207,10 @@
             <span id="usage-period" class="muted text-xs"></span>
           </div>
           <div id="usage-chart" class="usage-chart" role="img" aria-label="Usage history chart"></div>
+          <!-- v1.4.0 — depletion forecast (one-line takeaway) -->
+          <div id="usage-forecast" class="usage-forecast hidden" role="status"></div>
+          <!-- v1.4.0 — per-server usage breakdown -->
+          <div id="usage-nodes" class="usage-nodes hidden"></div>
           <div id="usage-updated" class="usage-updated muted hidden"></div>
           <div id="usage-alert" class="usage-alert hidden" role="status"></div>
         </div>
@@ -254,6 +258,17 @@
                 data-i18n-ph="search_configs"
               />
             </label>
+            <button
+              id="config-group-toggle"
+              class="config-tool-btn"
+              aria-pressed="false"
+              aria-label="Group by country"
+              title=""
+              data-i18n-title="group_aria"
+            >
+              <span class="w-4 h-4 inline-flex" data-icon="globe"></span>
+              <span data-i18n-dyn="group_label">Group</span>
+            </button>
             <button
               id="config-select-toggle"
               class="config-tool-btn"

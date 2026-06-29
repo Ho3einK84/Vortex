@@ -149,6 +149,14 @@ function applyI18n() {
     const key = el.getAttribute('data-i18n-ph')
     if (dict[key] != null) el.setAttribute('placeholder', dict[key])
   })
+  // Title/tooltip attributes (icon-only tool buttons).
+  $$('[data-i18n-title]').forEach((el) => {
+    const key = el.getAttribute('data-i18n-title')
+    if (dict[key] != null) {
+      el.setAttribute('title', dict[key])
+      el.setAttribute('aria-label', dict[key])
+    }
+  })
   // Re-render dynamic, number-bearing sections so digits/labels follow the language.
   renderDynamic()
 }
@@ -560,16 +568,80 @@ function renderReset() {
 
 /* --------------------------------------------------------- render: configs */
 
-// Config view state: search text, active protocol filter, bulk-selection mode.
+// Config view state: search text, active protocol filter, bulk-selection mode,
+// and (v1.4.0) whether configs are grouped by country.
 let configSearch = ''
 let configProtocol = 'all'
 let selectionMode = false
+let groupByCountry = false
 const selectedLinks = new Set()
 
 /** Upper-case protocol scheme of a config URI (VLESS, VMESS, TROJAN, SS, …). */
 function protocolOf(uri) {
   const m = uri.match(/^([a-z0-9+.-]+):/i)
   return m ? m[1].toUpperCase() : 'OTHER'
+}
+
+/* ----------------------------------------------- v1.4.0: country grouping */
+
+// ISO-3166 alpha-2 → display name, for grouping configs by server country. Kept to a
+// common-VPN-country subset; anything unmatched falls under the "Other" group.
+const COUNTRIES = {
+  US: 'United States', GB: 'United Kingdom', DE: 'Germany', NL: 'Netherlands',
+  FR: 'France', FI: 'Finland', SE: 'Sweden', NO: 'Norway', DK: 'Denmark',
+  IE: 'Ireland', IS: 'Iceland', CH: 'Switzerland', AT: 'Austria', BE: 'Belgium',
+  IT: 'Italy', ES: 'Spain', PT: 'Portugal', PL: 'Poland', CZ: 'Czechia',
+  RO: 'Romania', RU: 'Russia', UA: 'Ukraine', TR: 'Turkey', AE: 'United Arab Emirates',
+  QA: 'Qatar', SA: 'Saudi Arabia', IR: 'Iran', IN: 'India', SG: 'Singapore',
+  JP: 'Japan', KR: 'South Korea', HK: 'Hong Kong', TW: 'Taiwan', CN: 'China',
+  AU: 'Australia', CA: 'Canada', BR: 'Brazil', AM: 'Armenia', AZ: 'Azerbaijan',
+  GE: 'Georgia', KZ: 'Kazakhstan', LT: 'Lithuania', LV: 'Latvia', EE: 'Estonia',
+}
+
+// Aliases / name needles → code (longest needles matched first to avoid e.g. "Iran"
+// colliding with "Ireland"). Built once from COUNTRIES plus a few common aliases.
+const COUNTRY_NEEDLES = (() => {
+  const extra = {
+    'united states': 'US', usa: 'US', america: 'US',
+    'united kingdom': 'GB', uk: 'GB', england: 'GB', britain: 'GB',
+    holland: 'NL', deutschland: 'DE', türkiye: 'TR', turkiye: 'TR',
+    'south korea': 'KR', korea: 'KR', 'hong kong': 'HK', emirates: 'AE', uae: 'AE',
+  }
+  const map = new Map()
+  for (const [code, name] of Object.entries(COUNTRIES)) map.set(name.toLowerCase(), code)
+  for (const [needle, code] of Object.entries(extra)) map.set(needle, code)
+  return [...map.entries()].sort((a, b) => b[0].length - a[0].length)
+})()
+
+/** Regional-indicator pair (🇩🇪) → ISO code (DE), or null when no flag is present. */
+function codeFromFlag(str) {
+  const cps = Array.from(String(str))
+    .map((c) => c.codePointAt(0))
+    .filter((cp) => cp >= 0x1f1e6 && cp <= 0x1f1ff)
+  if (cps.length < 2) return null
+  return String.fromCharCode(cps[0] - 0x1f1e6 + 65) + String.fromCharCode(cps[1] - 0x1f1e6 + 65)
+}
+
+/** ISO code (DE) → flag emoji (🇩🇪). */
+function flagOf(code) {
+  return code.replace(/[A-Z]/g, (c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
+}
+
+/**
+ * Detect a config's server country from its remark — first via a flag emoji, then by
+ * matching a country name/alias as a whole word. Returns { code, name, flag } or null.
+ */
+function countryOf(label) {
+  const fromFlag = codeFromFlag(label)
+  if (fromFlag) {
+    return { code: fromFlag, name: COUNTRIES[fromFlag] || fromFlag, flag: flagOf(fromFlag) }
+  }
+  const low = label.toLowerCase()
+  for (const [needle, code] of COUNTRY_NEEDLES) {
+    const re = new RegExp('(^|[^a-z])' + needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^a-z]|$)', 'i')
+    if (re.test(low)) return { code, name: COUNTRIES[code] || code, flag: flagOf(code) }
+  }
+  return null
 }
 
 /** Links passing the current search + protocol filter, carrying their 1-based index. */
@@ -649,12 +721,20 @@ function renderConfigs() {
     return
   }
 
-  rows.forEach(({ link, i, name }) => {
-    const row = document.createElement('div')
-    row.className = 'config-row'
-    row.setAttribute('tabindex', '0')
-    row.dataset.link = link
-    row.innerHTML = `
+  if (groupByCountry) {
+    renderGroupedConfigs(list, rows)
+  } else {
+    rows.forEach((r) => list.appendChild(buildConfigRow(r)))
+  }
+}
+
+/** Build one interactive config row (copy / QR / select), shared by both layouts. */
+function buildConfigRow({ link, i, name }) {
+  const row = document.createElement('div')
+  row.className = 'config-row'
+  row.setAttribute('tabindex', '0')
+  row.dataset.link = link
+  row.innerHTML = `
       <label class="config-check" aria-label="${t('select_label')}">
         <input type="checkbox" ${selectedLinks.has(link) ? 'checked' : ''} />
       </label>
@@ -666,29 +746,61 @@ function renderConfigs() {
         <button class="icon-btn" data-act="qr" aria-label="${t('show_qr')}">${icon('qr')}</button>
         <button class="icon-btn" data-act="copy" aria-label="${t('copy')}">${icon('copy')}</button>
       </div>`
-    row.querySelector('[data-act=copy]').addEventListener('click', async (e) => {
-      e.stopPropagation()
-      const ok = await copyText(link)
-      toast(ok ? t('copied') : '✕')
-    })
-    row.querySelector('[data-act=qr]').addEventListener('click', (e) => {
-      e.stopPropagation()
-      openQr(name, link)
-    })
-    const cb = row.querySelector('input[type=checkbox]')
-    cb.addEventListener('change', () => {
-      if (cb.checked) selectedLinks.add(link)
-      else selectedLinks.delete(link)
-      updateSelectionBar()
-    })
-    list.appendChild(row)
+  row.querySelector('[data-act=copy]').addEventListener('click', async (e) => {
+    e.stopPropagation()
+    const ok = await copyText(link)
+    toast(ok ? t('copied') : '✕')
+  })
+  row.querySelector('[data-act=qr]').addEventListener('click', (e) => {
+    e.stopPropagation()
+    openQr(name, link)
+  })
+  const cb = row.querySelector('input[type=checkbox]')
+  cb.addEventListener('change', () => {
+    if (cb.checked) selectedLinks.add(link)
+    else selectedLinks.delete(link)
+    updateSelectionBar()
+  })
+  return row
+}
+
+/** v1.4.0 — render rows grouped under country headers (largest groups first). */
+function renderGroupedConfigs(list, rows) {
+  const groups = new Map()
+  rows.forEach((r) => {
+    const c = countryOf(r.name)
+    const key = c ? c.code : '_other'
+    if (!groups.has(key)) {
+      groups.set(key, {
+        flag: c ? c.flag : '🏳️',
+        name: c ? c.name : t('country_other'),
+        isOther: !c,
+        items: [],
+      })
+    }
+    groups.get(key).items.push(r)
+  })
+  // Largest groups first; the catch-all "Other" group is always pinned last.
+  const ordered = [...groups.values()].sort((a, b) => {
+    if (a.isOther !== b.isOther) return a.isOther ? 1 : -1
+    return b.items.length - a.items.length
+  })
+  ordered.forEach((g) => {
+    const head = document.createElement('div')
+    head.className = 'config-group-head'
+    head.innerHTML =
+      `<span class="cg-flag">${escapeHtml(g.flag)}</span>` +
+      `<span class="cg-name" dir="auto">${escapeHtml(g.name)}</span>` +
+      `<span class="cg-count">${locNum(g.items.length, lang)}</span>`
+    list.appendChild(head)
+    g.items.forEach((r) => list.appendChild(buildConfigRow(r)))
   })
 }
 
 /** Enable/disable the bulk action buttons when there are zero configs. */
 function updateConfigButtons() {
   const empty = !CTX.links.length
-  ;['#copy-all', '#sub-qr-btn', '#config-export', '#config-select-toggle'].forEach((sel) => {
+  ;['#copy-all', '#sub-qr-btn', '#config-export', '#config-select-toggle', '#config-group-toggle'].forEach((sel) => {
     const el = $(sel)
     if (!el) return
     el.classList.toggle('is-disabled', empty)
@@ -718,6 +830,14 @@ function toggleSelectionMode() {
       label.textContent = t(selectionMode ? 'select_done' : 'select_label')
     }
   }
+  renderConfigs()
+}
+
+/** v1.4.0 — toggle grouping configs by detected server country. */
+function toggleGroupByCountry() {
+  groupByCountry = !groupByCountry
+  const btn = $('#config-group-toggle')
+  if (btn) btn.setAttribute('aria-pressed', String(groupByCountry))
   renderConfigs()
 }
 
@@ -926,6 +1046,7 @@ function renderOnlineBadge() {
 let usageHistory = null
 let usageUpdatedAt = 0 // epoch ms of the data currently shown
 let usageStale = false // true when showing cached data we couldn't refresh
+let nodeUsage = null // v1.4.0 — [{ name, value }] per-server breakdown, when present
 
 const USAGE_CACHE_KEY = 'vortex:usage'
 
@@ -934,6 +1055,24 @@ function pickUsageArray(data) {
   if (Array.isArray(data)) return data
   if (data && typeof data === 'object') return data.history || data.data || data.usages || null
   return null
+}
+
+/**
+ * v1.4.0 — pull a per-server breakdown out of Rebecca's `node_usages[]` (already in
+ * the same payload we fetch for the chart). Sums uplink+downlink per node, falling
+ * back to used_traffic/value, and drops zero-traffic nodes. Returns null when absent.
+ */
+function pickNodeUsage(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+  const arr = data.node_usages || data.nodes || null
+  if (!Array.isArray(arr) || !arr.length) return null
+  const rows = arr
+    .map((n) => ({
+      name: String((n && (n.node_name || n.name)) || '').trim() || '—',
+      value: num(n && n.uplink) + num(n && n.downlink) || num(n && n.used_traffic) || num(n && n.value),
+    }))
+    .filter((n) => n.value > 0)
+  return rows.length ? rows : null
 }
 
 /**
@@ -967,8 +1106,8 @@ function parseUsageFromHtml(html) {
   return null
 }
 
-function cacheUsage(data) {
-  persist(USAGE_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }))
+function cacheUsage(data, nodes) {
+  persist(USAGE_CACHE_KEY, JSON.stringify({ ts: Date.now(), data, nodes: nodes || null }))
 }
 
 function readCachedUsage() {
@@ -996,21 +1135,27 @@ async function loadUsageHistory() {
     const ctype = (res.headers.get('content-type') || '').toLowerCase()
     const body = await res.text()
     let arr = null
+    let parsed = null
     if (ctype.includes('application/json') || /^\s*[[{]/.test(body)) {
       try {
-        arr = pickUsageArray(JSON.parse(body))
+        parsed = JSON.parse(body)
+        arr = pickUsageArray(parsed)
       } catch (e) {
         arr = parseUsageFromHtml(body) // JSON content-type but malformed → try scraping
       }
     } else {
       arr = parseUsageFromHtml(body) // HTML panel page (Bug #1)
     }
+    // v1.4.0 — capture the per-server breakdown when the payload is JSON (the HTML
+    // fallback only yields the daily array, so nodes simply stay unavailable there).
+    const nodes = pickNodeUsage(parsed)
 
     if (arr && arr.length) {
       usageHistory = arr
+      nodeUsage = nodes
       usageUpdatedAt = Date.now()
       usageStale = false
-      cacheUsage(arr)
+      cacheUsage(arr, nodes)
       return
     }
     // Parsed but empty/garbage — fall through to cached/empty handling.
@@ -1022,6 +1167,7 @@ async function loadUsageHistory() {
     const cached = readCachedUsage()
     if (cached) {
       usageHistory = cached.data
+      nodeUsage = cached.nodes || null
       usageUpdatedAt = cached.ts
       usageStale = true
     } else if (usageHistory == null) {
@@ -1082,6 +1228,10 @@ function renderUsageDashboard() {
       updated.classList.add('hidden')
     }
   }
+
+  // v1.4.0 — usage-transparency insights (both self-hide when data is insufficient).
+  renderForecast()
+  renderNodeBreakdown()
 
   // Bug #1 — empty (but present) history shows a message rather than vanishing.
   if (!usageHistory.length) {
@@ -1164,6 +1314,86 @@ function renderUsageDashboard() {
   } else {
     alert.classList.add('hidden')
   }
+}
+
+/**
+ * v1.4.0 — depletion forecast. Projects when the data limit will be hit from the
+ * average daily usage over the most recent days, and flags when the plan expires
+ * first. Only shown for an active plan with a finite limit and remaining headroom.
+ */
+function renderForecast() {
+  const box = $('#usage-forecast')
+  if (!box) return
+  const limit = CTX.dataLimit
+  const unlimited = !hasValue(CTX.dataLimitRaw) || limit <= 0
+  const remaining = limit - CTX.usedTraffic
+  const inactive = STATE === 'expired' || STATE === 'limited' || STATE === 'disabled'
+  if (unlimited || remaining <= 0 || inactive || !usageHistory || !usageHistory.length) {
+    box.classList.add('hidden')
+    box.innerHTML = ''
+    return
+  }
+  // Average daily usage over the most recent (up to 7) days we have data for.
+  const recent = usageHistory.slice().sort((a, b) => dateOf(a) - dateOf(b)).slice(-7)
+  const vals = recent.map(usageValOf)
+  const avgDaily = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0
+  if (avgDaily <= 0) {
+    box.classList.add('hidden')
+    box.innerHTML = ''
+    return
+  }
+  const daysLeft = remaining / avgDaily
+  const depleteAt = new Date(Date.now() + daysLeft * 86400000)
+  const expiresFirst = hasValue(CTX.expireRaw) && CTX.expire * 1000 <= depleteAt.getTime()
+  const days = Math.max(0, Math.ceil(daysLeft))
+  let body
+  if (expiresFirst) {
+    body = `<span class="fc-text">${escapeHtml(t('forecast_expire_first'))}</span>`
+  } else {
+    const dStr = fmtDate(depleteAt, lang, { month: 'short' })
+    const dayWord = days === 1 ? t('day_unit') : t('days_unit')
+    body =
+      `<span class="fc-text">${escapeHtml(t('forecast_deplete'))} ` +
+      `<span class="fc-strong">${escapeHtml(dStr)}</span> · ${locNum(days, lang)} ${escapeHtml(dayWord)}</span>`
+  }
+  box.innerHTML = `<span class="fc-icon">${icon('clock')}</span>${body}`
+  box.classList.remove('hidden')
+}
+
+/**
+ * v1.4.0 — per-server usage breakdown from `node_usages[]`. Horizontal bars sorted
+ * by traffic (top 6), with each server's share of the total. Self-hides when the
+ * payload carries no node data (e.g. the HTML-scrape fallback path).
+ */
+function renderNodeBreakdown() {
+  const box = $('#usage-nodes')
+  if (!box) return
+  if (!nodeUsage || !nodeUsage.length) {
+    box.classList.add('hidden')
+    box.innerHTML = ''
+    return
+  }
+  const rows = nodeUsage.slice().sort((a, b) => b.value - a.value).slice(0, 6)
+  const max = Math.max(1, ...rows.map((r) => r.value))
+  const total = nodeUsage.reduce((s, r) => s + r.value, 0)
+  const items = rows
+    .map((r) => {
+      const f = fmtBytes(r.value)
+      const pct = total > 0 ? Math.round((r.value / total) * 100) : 0
+      const w = Math.max(2, Math.round((r.value / max) * 100))
+      return (
+        `<div class="node-row">` +
+        `<div class="node-top">` +
+        `<span class="node-name" dir="auto" title="${escapeAttr(r.name)}">${escapeHtml(r.name)}</span>` +
+        `<span class="node-val">${locNum(f.value, lang)} ${f.unit} · ${locNum(pct, lang)}${lang === 'fa' ? '٪' : '%'}</span>` +
+        `</div>` +
+        `<div class="node-bar"><span style="width:${w}%"></span></div>` +
+        `</div>`
+      )
+    })
+    .join('')
+  box.innerHTML = `<div class="usage-subhead">${escapeHtml(t('usage_by_server'))}</div>${items}`
+  box.classList.remove('hidden')
 }
 
 /** Re-run renders that depend on language/number formatting. */
@@ -1364,6 +1594,9 @@ function wireControls() {
   // Export configs to a .txt file (Feature #3).
   const exportBtn = $('#config-export')
   if (exportBtn) exportBtn.addEventListener('click', exportConfigs)
+  // Group configs by country (v1.4.0).
+  const groupBtn = $('#config-group-toggle')
+  if (groupBtn) groupBtn.addEventListener('click', toggleGroupByCountry)
   // Bulk-selection mode (Feature #8).
   const selBtn = $('#config-select-toggle')
   if (selBtn) selBtn.addEventListener('click', toggleSelectionMode)
