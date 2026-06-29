@@ -3,6 +3,17 @@
 All notable changes to Vortex are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## v1.4.0
+
+### Added
+- **Per-server usage breakdown** — the usage dashboard now shows a "By server" list of horizontal bars, ranking each node by traffic and its share of the total. Parsed from the `node_usages[]` already present in Rebecca's usage payload (no extra request).
+- **Depletion forecast** — a one-line projection under the usage chart estimating when the data limit will be reached from recent daily usage, and flagging when the plan expires first. Shown only for active plans with a finite limit and remaining headroom.
+- **Group configs by country** — a new toggle in the config toolbar groups configs under country headers (flag + name), detected from the config remark via flag emoji or country name. Unmatched configs fall under an "Other" group. Fully localized and RTL-aware.
+
+### Changed
+- The usage cache now also stores the per-server breakdown so it survives an offline reload alongside the daily history.
+- Added a reusable `data-i18n-title` hook so icon-only tool buttons get a localized tooltip/`aria-label` that follows the language.
+
 ## v1.3.2
 
 ### Security

@@ -941,6 +941,85 @@ html[dir='rtl'] .config-name {
   margin-inline-end: 0.3rem;
 }
 
+/* ============================================================ v1.4.0 additions */
+
+/* ---- depletion forecast (one-line takeaway under the usage chart) */
+.usage-forecast {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 2px dashed var(--ink);
+  background: var(--surface);
+  padding: 0.45rem 0.65rem;
+  font-weight: 700;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.usage-forecast .fc-icon { flex: none; display: inline-flex; }
+.usage-forecast .fc-icon svg { width: 16px; height: 16px; }
+.usage-forecast .fc-strong { font-weight: 900; }
+
+/* ---- per-server usage breakdown */
+.usage-nodes { margin-top: 0.85rem; }
+.usage-subhead {
+  font-weight: 800;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 0.45rem;
+}
+.node-row + .node-row { margin-top: 0.5rem; }
+.node-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+.node-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.node-val { flex: none; color: var(--muted); font-weight: 800; }
+.node-bar {
+  margin-top: 0.22rem;
+  height: 9px;
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  overflow: hidden;
+}
+.node-bar span { display: block; height: 100%; background: var(--accent); }
+
+/* ---- config grouping by country */
+.config-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.5rem;
+  font-weight: 900;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.config-group-head:first-child { margin-top: 0; }
+.config-group-head .cg-flag { font-size: 1.05rem; line-height: 1; flex: none; }
+.config-group-head .cg-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.config-group-head .cg-count {
+  flex: none;
+  margin-inline-start: auto;
+  min-width: 22px;
+  padding: 0 0.35rem;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.7rem;
+  border: 2px solid var(--ink);
+  background: var(--accent3);
+  color: #111;
+}
+/* keep grouped rows visually attached under their header */
+.config-group-head + .config-row { margin-top: 0; }
+
 /* ---------------------------------------------------- reduced-motion respect */
 @media (prefers-reduced-motion: reduce) {
   *,

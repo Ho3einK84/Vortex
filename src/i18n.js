@@ -94,6 +94,14 @@ export const STRINGS = {
     error_title: 'Something went wrong',
     error_msg: 'The page failed to load fully. Please refresh to try again.',
     external_link: 'Opens in a new tab',
+
+    // v1.4.0 — usage transparency + config grouping
+    usage_by_server: 'By server',
+    forecast_deplete: 'At this rate, data runs out',
+    forecast_expire_first: 'Your plan expires before your data runs out',
+    group_label: 'Group',
+    group_aria: 'Group by country',
+    country_other: 'Other',
   },
   fa: {
     dir: 'rtl',
@@ -187,6 +195,14 @@ export const STRINGS = {
     error_title: 'مشکلی پیش آمد',
     error_msg: 'صفحه به‌طور کامل بارگذاری نشد. لطفاً صفحه را تازه‌سازی کنید.',
     external_link: 'در تب جدید باز می‌شود',
+
+    // v1.4.0 — usage transparency + config grouping
+    usage_by_server: 'به تفکیک سرور',
+    forecast_deplete: 'با این روند، حجم تمام می‌شود',
+    forecast_expire_first: 'اشتراک شما زودتر از حجم به پایان می‌رسد',
+    group_label: 'گروه',
+    group_aria: 'گروه‌بندی بر اساس کشور',
+    country_other: 'سایر',
   },
 }
 

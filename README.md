@@ -9,12 +9,12 @@ A bold **Neo-Brutalist** subscription page template for the [Rebecca](https://gi
 ## ✨ Features
 
 - 💳 **Service card** — dual rings (data + time), traffic stats, expiry, live quota-reset countdown; handles unlimited & never-expire.
-- 🔗 **Configs** — collapsible list with copy, per-config QR, copy-all, search/filter, `.txt` export and bulk select.
+- 🔗 **Configs** — collapsible list with copy, per-config QR, copy-all, search/filter, `.txt` export, bulk select and **group-by-country**.
 - 📱 **Apps** — OS-grouped client list (Android / iOS / Windows / macOS / Linux) with one-tap import + download links from `src/apps.json`.
 - 🎭 **Themes** — `vortex-light` (paper) and `vortex-dark` (amoled); preference persists.
 - 🌍 **i18n** — EN (Exo 2) and فارسی (Arad) with full RTL, Persian digits and Jalali dates; force via `?lang=fa` / `?theme=vortex-dark`.
 - 🏷️ **White-label** — `brand_name` binding customizes splash, header and title.
-- 📊 **Usage dashboard** — 30-day bar chart from `usage_url` with 50/80/90% alerts.
+- 📊 **Usage dashboard** — 30-day bar chart from `usage_url` with 50/80/90% alerts, a **per-server breakdown** and a **depletion forecast**.
 - 📲 **PWA-ready** — dynamically registered manifest + inline service worker.
 - ♿ **Accessible** — ARIA labels, QR-modal focus trap, `Ctrl/Cmd+Shift+C` to copy all.
 - 🛟 **Resilient** — offline banner and graceful expired / limited / disabled / on-hold / empty states.
