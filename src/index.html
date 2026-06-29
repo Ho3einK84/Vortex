@@ -118,6 +118,17 @@
         </div>
       </header>
 
+      <!-- Notification opt-in (v1.4.2): shown on first load when permission is still
+           undecided; the actual browser permission is requested from the Enable click. -->
+      <div id="notify-prompt" class="notify-prompt hidden" role="region" aria-label="Notifications">
+        <span class="notify-prompt-icon" data-icon="bell"></span>
+        <span class="notify-prompt-text" data-i18n="notify_enable_body">Enable alerts for data usage and expiry?</span>
+        <span class="notify-prompt-actions">
+          <button id="notify-enable" class="brutal-btn surface px-3 py-1.5 font-800 text-xs" data-i18n="notify_enable_btn">Enable</button>
+          <button id="notify-dismiss" class="notify-dismiss px-2 py-1.5 font-700 text-xs" data-i18n="notify_dismiss_btn">Not now</button>
+        </span>
+      </div>
+
       <!-- Service card -->
       <section id="service-card" data-reveal class="brutal surface p-4 mt-5" data-state="active">
         <div class="flex items-center justify-between gap-3">

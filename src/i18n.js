@@ -102,6 +102,16 @@ export const STRINGS = {
     group_label: 'Group',
     group_aria: 'Group by country',
     country_other: 'Other',
+
+    // v1.4.2 — notification opt-in + threshold alerts
+    notify_enable_body: 'Enable alerts for data usage and expiry?',
+    notify_enable_btn: 'Enable',
+    notify_dismiss_btn: 'Not now',
+    notify_data_50: "You've used 50% of your data.",
+    notify_data_70: "You've used 70% of your data.",
+    notify_data_90: '90% of your data used — running low.',
+    notify_time_3: 'Only 3 days left before your subscription expires.',
+    notify_time_1: 'Last day — your subscription expires within 24 hours.',
   },
   fa: {
     dir: 'rtl',
@@ -203,6 +213,16 @@ export const STRINGS = {
     group_label: 'گروه',
     group_aria: 'گروه‌بندی بر اساس کشور',
     country_other: 'سایر',
+
+    // v1.4.2 — notification opt-in + threshold alerts
+    notify_enable_body: 'هشدارهای مصرف حجم و انقضا فعال شوند؟',
+    notify_enable_btn: 'فعال‌سازی',
+    notify_dismiss_btn: 'بعداً',
+    notify_data_50: '۵۰٪ از حجم اشتراکت مصرف شده.',
+    notify_data_70: '۷۰٪ از حجم اشتراکت مصرف شده.',
+    notify_data_90: '۹۰٪ حجم مصرف شده — رو به اتمام.',
+    notify_time_3: 'فقط ۳ روز تا پایان اشتراکت باقی مانده.',
+    notify_time_1: 'آخرین روز — اشتراکت تا کمتر از ۲۴ ساعت دیگر تمام می‌شود.',
   },
 }
 

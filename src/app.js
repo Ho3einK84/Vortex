@@ -1651,6 +1651,9 @@ function wireControls() {
       }
     }
   })
+
+  // Notification opt-in prompt (v1.4.2).
+  wireNotifyPrompt()
 }
 
 /** Read a resolved theme token (e.g. --paper) for PWA/meta colours. */
@@ -1782,6 +1785,125 @@ function showErrorState(err) {
   }
 }
 
+/* ------------------------------------------- usage/expiry notifications (v1.4.2) */
+
+const NOTIFY_LEVELS_KEY = 'vortex:notify-levels'
+const NOTIFY_OPTOUT_KEY = 'vortex:notify-optout'
+
+function notifySupported() {
+  return typeof Notification !== 'undefined'
+}
+
+function readNotifyLevels() {
+  try {
+    const o = JSON.parse(read(NOTIFY_LEVELS_KEY))
+    return o && typeof o === 'object' ? o : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+/**
+ * Fire local notifications when usage/expiry cross thresholds. Each milestone is
+ * tracked so it notifies once and only re-arms if the metric recovers (a quota reset
+ * or a renewal). These are local notifications — with no push backend they surface
+ * while the page is open, evaluated on each load.
+ *   data: 50% / 70% / 90% consumed (finite limit only)
+ *   time: 3 days / 1 day before expiry (skip never-expire)
+ */
+function evaluateNotifications() {
+  if (!notifySupported() || Notification.permission !== 'granted' || !CTX) return
+  const levels = readNotifyLevels()
+  let changed = false
+  const dead = STATE === 'expired' || STATE === 'disabled'
+
+  const post = (body) => {
+    try {
+      new Notification(CTX.brandName || 'Vortex', { body, lang, tag: 'vortex-alert' })
+    } catch (e) {
+      /* never let a notification failure bubble into init */
+    }
+  }
+
+  // ---- data usage thresholds
+  const limit = CTX.dataLimit
+  const hasLimit = hasValue(CTX.dataLimitRaw) && limit > 0
+  let dataLevel = 0
+  if (hasLimit && !dead) {
+    const frac = CTX.usedTraffic / limit
+    dataLevel = frac >= 0.9 ? 3 : frac >= 0.7 ? 2 : frac >= 0.5 ? 1 : 0
+  }
+  const prevData = levels.data || 0
+  if (dataLevel > prevData) post(t('notify_data_' + (dataLevel === 3 ? 90 : dataLevel === 2 ? 70 : 50)))
+  if (dataLevel !== prevData) {
+    levels.data = dataLevel
+    changed = true
+  }
+
+  // ---- expiry thresholds
+  let timeLevel = 0
+  if (hasValue(CTX.expireRaw) && !dead) {
+    const days = Math.ceil(Math.max(0, CTX.expire - Date.now() / 1000) / 86400)
+    timeLevel = days <= 1 ? 2 : days <= 3 ? 1 : 0
+  }
+  const prevTime = levels.time || 0
+  if (timeLevel > prevTime) post(t('notify_time_' + (timeLevel === 2 ? 1 : 3)))
+  if (timeLevel !== prevTime) {
+    levels.time = timeLevel
+    changed = true
+  }
+
+  if (changed) persist(NOTIFY_LEVELS_KEY, JSON.stringify(levels))
+}
+
+/** Wire the opt-in prompt buttons (permission is requested from the click gesture). */
+function wireNotifyPrompt() {
+  const prompt = $('#notify-prompt')
+  if (!prompt) return
+  const hide = () => prompt.classList.add('hidden')
+  const enable = $('#notify-enable')
+  const dismiss = $('#notify-dismiss')
+  if (enable) {
+    enable.addEventListener('click', () => {
+      hide()
+      if (!notifySupported()) return
+      // requestPermission() must run from a user gesture — hence the button.
+      Promise.resolve(Notification.requestPermission())
+        .then((perm) => {
+          if (perm === 'granted') evaluateNotifications()
+          else if (perm === 'denied') persist(NOTIFY_OPTOUT_KEY, '1')
+        })
+        .catch(() => {})
+    })
+  }
+  if (dismiss) {
+    dismiss.addEventListener('click', () => {
+      hide()
+      persist(NOTIFY_OPTOUT_KEY, '1')
+    })
+  }
+}
+
+/**
+ * On first load: if the user already granted permission, evaluate thresholds now;
+ * if it is still undecided (and not previously dismissed), show the opt-in prompt.
+ */
+function setupNotifications() {
+  try {
+    if (!notifySupported()) return
+    if (Notification.permission === 'granted') {
+      evaluateNotifications()
+      return
+    }
+    if (Notification.permission === 'denied') return
+    if (read(NOTIFY_OPTOUT_KEY) === '1') return
+    const prompt = $('#notify-prompt')
+    if (prompt) prompt.classList.remove('hidden')
+  } catch (e) {
+    /* notifications are best-effort; never block the page */
+  }
+}
+
 async function init() {
   try {
     CTX = readContext()
@@ -1804,6 +1926,7 @@ async function init() {
     // repeated here (was: a second manifest blob + a second probe on every load).
     wireOffline()
     registerServiceWorker()
+    setupNotifications() // v1.4.2 — first-load opt-in + usage/expiry threshold alerts
 
     // Load usage history asynchronously; it will render when ready.
     await loadUsageHistory()
