@@ -538,6 +538,7 @@ html[lang='fa'] body {
 }
 html[dir='rtl'] #app,
 html[dir='rtl'] .section-head,
+html[dir='rtl'] .usage-header,
 html[dir='rtl'] .os-head,
 html[dir='rtl'] .config-row,
 html[dir='rtl'] .app-row,
@@ -690,13 +691,33 @@ html[dir='rtl'] .config-name {
 .usage-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: inherit;
   font-weight: 800;
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   margin-bottom: 0.5rem;
 }
+.usage-header-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.usage-chevron {
+  flex: none;
+  transition: transform 0.2s ease;
+}
+.usage-chevron svg { width: 18px; height: 18px; }
+.usage-header[aria-expanded='false'] .usage-chevron { transform: rotate(-90deg); }
+.usage-header[aria-expanded='false'] { margin-bottom: 0; }
 .usage-chart {
   width: 100%;
   height: 80px;

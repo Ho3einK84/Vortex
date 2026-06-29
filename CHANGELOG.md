@@ -3,6 +3,11 @@
 All notable changes to Vortex are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## v1.4.1
+
+### Added
+- The **Usage history** panel is now collapsible — tap its header to open/close it, and the open/closed state persists across reloads (same mechanism as the Configs and Apps sections). The date-range label stays visible in the header when collapsed.
+
 ## v1.4.0
 
 ### Added
