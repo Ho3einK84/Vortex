@@ -201,18 +201,25 @@
 
         <!-- Usage dashboard -->
         <div id="usage-dashboard" class="hidden mt-4">
-          <div class="usage-header">
-            <span class="w-4 h-4 inline-flex" data-icon="database"></span>
-            <span data-i18n="usage_history">Usage history</span>
-            <span id="usage-period" class="muted text-xs"></span>
+          <!-- v1.4.1 — collapsible Usage history (open/close state persists like the
+               Configs and Apps sections, via the shared data-collapse mechanism). -->
+          <button class="usage-header" data-collapse="usage-body" aria-expanded="true" aria-controls="usage-body">
+            <span class="usage-header-main">
+              <span class="w-4 h-4 inline-flex" data-icon="database"></span>
+              <span data-i18n="usage_history">Usage history</span>
+              <span id="usage-period" class="muted text-xs"></span>
+            </span>
+            <span class="usage-chevron" data-icon="chevron"></span>
+          </button>
+          <div id="usage-body">
+            <div id="usage-chart" class="usage-chart" role="img" aria-label="Usage history chart"></div>
+            <!-- v1.4.0 — depletion forecast (one-line takeaway) -->
+            <div id="usage-forecast" class="usage-forecast hidden" role="status"></div>
+            <!-- v1.4.0 — per-server usage breakdown -->
+            <div id="usage-nodes" class="usage-nodes hidden"></div>
+            <div id="usage-updated" class="usage-updated muted hidden"></div>
+            <div id="usage-alert" class="usage-alert hidden" role="status"></div>
           </div>
-          <div id="usage-chart" class="usage-chart" role="img" aria-label="Usage history chart"></div>
-          <!-- v1.4.0 — depletion forecast (one-line takeaway) -->
-          <div id="usage-forecast" class="usage-forecast hidden" role="status"></div>
-          <!-- v1.4.0 — per-server usage breakdown -->
-          <div id="usage-nodes" class="usage-nodes hidden"></div>
-          <div id="usage-updated" class="usage-updated muted hidden"></div>
-          <div id="usage-alert" class="usage-alert hidden" role="status"></div>
         </div>
       </section>
 
