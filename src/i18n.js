@@ -91,6 +91,9 @@ export const STRINGS = {
 
     // v1.3.0 — QR + error boundary
     qr_too_long: 'Link too long for a QR code — use Copy instead.',
+    // v1.5.0 — the QR generator loads lazily on first use
+    qr_loading: 'Generating…',
+    qr_load_error: 'QR unavailable — use Copy instead.',
     error_title: 'Something went wrong',
     error_msg: 'The page failed to load fully. Please refresh to try again.',
     external_link: 'Opens in a new tab',
@@ -202,6 +205,9 @@ export const STRINGS = {
 
     // v1.3.0 — QR + error boundary
     qr_too_long: 'لینک برای کد QR بسیار بلند است — از کپی استفاده کنید.',
+    // v1.5.0 — the QR generator loads lazily on first use
+    qr_loading: 'در حال ساخت…',
+    qr_load_error: 'کیوآر در دسترس نیست — از کپی استفاده کنید.',
     error_title: 'مشکلی پیش آمد',
     error_msg: 'صفحه به‌طور کامل بارگذاری نشد. لطفاً صفحه را تازه‌سازی کنید.',
     external_link: 'در تب جدید باز می‌شود',
