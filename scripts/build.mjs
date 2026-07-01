@@ -210,13 +210,35 @@ async function buildJs() {
   return result.outputFiles[0].text
 }
 
+// The QR generator (qrcode-generator + src/qr.js, ~21KB minified — a quarter of
+// the whole app bundle) is built as its own ES module instead of being bundled
+// into app.js. app.js embeds it as a second, inert base64 blob and only
+// decodes + dynamically imports it (via a Blob URL, no network request) the
+// first time a user opens a QR modal — see loadQrSvg() in src/app.js.
+async function buildQrJs() {
+  const result = await esbuild.build({
+    entryPoints: [join(SRC, 'qr.js')],
+    bundle: true,
+    minify: true,
+    format: 'esm',
+    target: ['es2018'],
+    charset: 'utf8',
+    legalComments: 'none',
+    write: false,
+  })
+  return result.outputFiles[0].text
+}
+
 /* ------------------------------------------------------------- runtime loader */
 
 // Tiny loader: base64 → UTF-8 bytes → source → executed <script>. Contains no
-// template directives, so pongo2 leaves it untouched.
-function loaderScript(b64) {
+// template directives, so pongo2 leaves it untouched. The QR blob (qrB64) is
+// only stored here for app.js to fetch later — it is never executed by this
+// loader itself.
+function loaderScript(b64, qrB64) {
   return (
     `<script id="__vortex_app" type="application/octet-stream">${b64}</script>\n` +
+    `<script id="__vortex_qr" type="application/octet-stream">${qrB64}</script>\n` +
     `<script>(function(){` +
     `var b=document.getElementById('__vortex_app').textContent.trim();` +
     `var bytes=Uint8Array.from(atob(b),function(c){return c.charCodeAt(0)});` +
@@ -244,13 +266,16 @@ async function build() {
 
   const css = await buildCss(html, appSource)
   const js = await buildJs()
+  const qrJs = await buildQrJs()
   const b64 = Buffer.from(js, 'utf8').toString('base64')
+  const qrB64 = Buffer.from(qrJs, 'utf8').toString('base64')
 
   // Sanity: base64 must be brace-free (so it can never re-introduce a directive).
-  if (/[{}]/.test(b64)) throw new Error('[build] base64 payload contained a brace — impossible?')
+  if (/[{}]/.test(b64)) throw new Error('[build] app base64 payload contained a brace — impossible?')
+  if (/[{}]/.test(qrB64)) throw new Error('[build] qr base64 payload contained a brace — impossible?')
 
   html = html.replace('<!-- vortex:styles -->', `<style>${css}</style>`)
-  html = html.replace('<!-- vortex:script -->', loaderScript(b64))
+  html = html.replace('<!-- vortex:script -->', loaderScript(b64, qrB64))
 
   guard(html)
 
@@ -260,7 +285,10 @@ async function build() {
 
   const kb = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(1)
   console.log(`✓ wrote ${out} (${kb} KB)`)
-  console.log(`  css ${(css.length / 1024).toFixed(1)} KB · js ${(js.length / 1024).toFixed(1)} KB (base64 ${(b64.length / 1024).toFixed(1)} KB)`)
+  console.log(
+    `  css ${(css.length / 1024).toFixed(1)} KB · js ${(js.length / 1024).toFixed(1)} KB (base64 ${(b64.length / 1024).toFixed(1)} KB)` +
+      ` · qr-js ${(qrJs.length / 1024).toFixed(1)} KB, lazy (base64 ${(qrB64.length / 1024).toFixed(1)} KB)`,
+  )
 }
 
 try {

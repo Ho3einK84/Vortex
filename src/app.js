@@ -9,8 +9,13 @@
 
 import { STRINGS, toFaDigits, locNum, fmtDate } from './i18n.js'
 import { icon } from './icons.js'
-import { qrSvg } from './qr.js'
 import APPS from './apps.json'
+
+// `qr.js` (and the qrcode-generator library it wraps, ~21KB minified — a quarter
+// of the whole app bundle) is intentionally NOT imported here. It's built as its
+// own tiny ES module by scripts/build.mjs and embedded as a second, inert
+// base64 blob (#__vortex_qr) so its parsing/execution cost is only paid the
+// first time a user actually opens a QR modal — see loadQrSvg() below.
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -334,20 +339,59 @@ function toast(msg) {
 /* ----------------------------------------------------------------- QR modal */
 
 let lastFocus = null
+let qrSvgFn = null
+let qrSvgPromise = null
 
-function openQr(title, text) {
+/**
+ * Decode + dynamically import the QR sub-bundle embedded by the build as a
+ * second inert base64 blob (#__vortex_qr), exactly once, then cache its
+ * `qrSvg` export. Uses the same "base64 → bytes → Blob → self-contained
+ * execution" trick as the service worker registration below, so this never
+ * triggers a network request.
+ */
+function loadQrSvg() {
+  if (qrSvgFn) return Promise.resolve(qrSvgFn)
+  if (qrSvgPromise) return qrSvgPromise
+  qrSvgPromise = (async () => {
+    const el = document.getElementById('__vortex_qr')
+    const bytes = Uint8Array.from(atob(el.textContent.trim()), (c) => c.charCodeAt(0))
+    const src = new TextDecoder('utf-8').decode(bytes)
+    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }))
+    try {
+      const mod = await import(url)
+      qrSvgFn = mod.qrSvg
+      return qrSvgFn
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  })()
+  return qrSvgPromise
+}
+
+async function openQr(title, text) {
   lastFocus = document.activeElement
   const modal = $('#qr-modal')
-  const dark = theme === 'vortex-dark' ? '#f4f1e8' : '#0a0a0a'
-  const light = theme === 'vortex-dark' ? '#0a0a0a' : '#ffffff'
   $('#qr-modal-title').textContent = title
-  $('#qr-modal-canvas').innerHTML = qrSvg(text, { dark, light, margin: 2 })
   $('#qr-modal-text').textContent = text
+  // Placeholder while the QR sub-bundle loads (instant on every call after the
+  // first, since loadQrSvg() caches its result).
+  $('#qr-modal-canvas').innerHTML = `<span class="muted text-xs">${escapeHtml(t('qr_loading'))}</span>`
   modal.classList.remove('hidden')
   modal.setAttribute('aria-hidden', 'false')
   // focus trap: move focus to close button, then constrain Tab.
   $('#qr-modal-close').focus()
   document.addEventListener('keydown', trapFocus)
+
+  const dark = theme === 'vortex-dark' ? '#f4f1e8' : '#0a0a0a'
+  const light = theme === 'vortex-dark' ? '#0a0a0a' : '#ffffff'
+  try {
+    const svg = await loadQrSvg()
+    if (modal.classList.contains('hidden')) return // closed before it loaded
+    $('#qr-modal-canvas').innerHTML = svg(text, { dark, light, margin: 2, errorText: t('qr_too_long') })
+  } catch (e) {
+    if (modal.classList.contains('hidden')) return
+    $('#qr-modal-canvas').innerHTML = `<span class="muted text-xs">${escapeHtml(t('qr_load_error'))}</span>`
+  }
 }
 
 function closeQr() {
