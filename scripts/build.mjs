@@ -116,10 +116,13 @@ const EXO_RANGES = {
     'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF',
 }
 
+// Only the weights the app actually requests (body text is 500; every
+// text-bearing button/label/heading explicitly sets 700/800/900, satisfied by
+// the browser's nearest-weight matching against the static faces below).
+// Regular (400) and SemiBold (600) are never referenced anywhere in src/, so
+// they're dropped to save ~48KB of inlined font data.
 const ARAD_WEIGHTS = {
-  Regular: 400,
   Medium: 500,
-  SemiBold: 600,
   Bold: 700,
   ExtraBold: 800,
 }
@@ -173,7 +176,21 @@ async function buildCss(html, appSource) {
   const { css } = await uno.generate(html + '\n' + appSource, { preflights: true })
   const base = await readFile(join(SRC, 'base.css'), 'utf8')
   const fonts = await buildFontFaces()
-  return `${fonts}\n${css}\n${base}`
+  return minifyCss(`${fonts}\n${css}\n${base}`)
+}
+
+/**
+ * Minify the combined CSS with esbuild, then neutralize any `{{`/`}}`/`{%`/`%}`/
+ * `{#`/`#}` two-character sequence the minifier can incidentally produce — e.g. a
+ * nested `@media{...}}` closing brace, or a declaration ending in a percentage
+ * value right before a rule closes (`width:100%}`). Those look exactly like a
+ * stray pongo2 directive to guard()'s scan below, which only checks for the raw
+ * two-character sequence. Inserting a single space is CSS-insignificant and
+ * keeps the guard's stray-directive check meaningful instead of disabling it.
+ */
+async function minifyCss(css) {
+  const result = await esbuild.transform(css, { loader: 'css', minify: true })
+  return result.code.replace(/\{\{|\}\}|\{%|%\}|\{#|#\}/g, (m) => m[0] + ' ' + m[1])
 }
 
 /* ---------------------------------------------------------------------- JS */

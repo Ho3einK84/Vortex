@@ -37,6 +37,17 @@ const reduceMotion =
   typeof matchMedia === 'function' &&
   matchMedia('(prefers-reduced-motion: reduce)').matches
 
+/**
+ * Fallback brand name when the panel's `{{ brand_name }}` binding is empty.
+ * Read from a plain-text <meta name="vortex-brand"> in <head> (not hardcoded
+ * here) so a self-hoster can rebrand an already-built dist/index.html with a
+ * one-line `sed` on the server, with no rebuild and no touching the base64 JS.
+ */
+function defaultBrand() {
+  const meta = document.querySelector('meta[name="vortex-brand"]')
+  return (meta && meta.content.trim()) || 'Vortex'
+}
+
 /* --------------------------------------------------------- read data-island */
 
 function readContext() {
@@ -68,7 +79,7 @@ function readContext() {
 
   return {
     username: (d.username || '').trim() || '—',
-    brandName: (d.brandName || '').trim() || 'Vortex',
+    brandName: (d.brandName || '').trim() || defaultBrand(),
     onlineCount: num(d.onlineCount),
     status: (d.status || '').trim().toLowerCase(),
     statusClass: (d.statusClass || '').trim(),

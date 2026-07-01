@@ -13,7 +13,7 @@ A bold **Neo-Brutalist** subscription page template for the [Rebecca](https://gi
 - 📱 **Apps** — OS-grouped client list (Android / iOS / Windows / macOS / Linux) with one-tap import + download links from `src/apps.json`.
 - 🎭 **Themes** — `vortex-light` (paper) and `vortex-dark` (amoled); preference persists.
 - 🌍 **i18n** — EN (Exo 2) and فارسی (Arad) with full RTL, Persian digits and Jalali dates; force via `?lang=fa` / `?theme=vortex-dark`.
-- 🏷️ **White-label** — `brand_name` binding customizes splash, header and title.
+- 🏷️ **White-label** — `brand_name` binding customizes splash, header and title; falls back to a default that's rebrandable on an already-built `dist/index.html` with a one-line command, no rebuild needed.
 - 📊 **Usage dashboard** — 30-day bar chart from `usage_url` with 50/80/90% alerts, a **per-server breakdown** and a **depletion forecast**.
 - 📲 **PWA-ready** — dynamically registered manifest + inline service worker.
 - ♿ **Accessible** — ARIA labels, QR-modal focus trap, `Ctrl/Cmd+Shift+C` to copy all.
@@ -92,7 +92,17 @@ If `subscription_url` isn't absolute, it's derived from `location.origin + locat
 `apps.json` import URLs support these placeholders, substituted at runtime:
 `{url}` (raw), `{url_enc}` (`encodeURIComponent`), `{url_b64}` (base64), `{name}` (username).
 
-To swap fonts, replace the `*.woff2` files in `assets/fonts/` (Exo 2 latin / latin-ext subsets and the five Arad weights) — the build base64-inlines whatever is there.
+To swap fonts, replace the `*.woff2` files in `assets/fonts/` (Exo 2 latin / latin-ext subsets and the three Arad weights — Medium/Bold/ExtraBold, the only ones actually referenced) — the build base64-inlines whatever is there.
+
+### Rebranding without a rebuild
+
+`brand_name` (from Rebecca) is what normally sets the displayed name. When that binding is empty, the page falls back to a default stored as plain text in `dist/index.html` — no build step required to change it. On the server:
+
+```bash
+sed -i 's/\bVortex\b/YourBrand/g' /var/lib/rebecca/templates/subscription/index.html
+```
+
+This rewrites every whole-word, case-sensitive `Vortex` — the `<title>`, the splash screen, the header brand name, and the `<meta name="vortex-brand">` default that the app JS reads at runtime — while leaving internal lowercase keys (`vortex-light`, `vortex:theme`, …) untouched. Reload any subscription URL to see it.
 
 ---
 
