@@ -3,6 +3,17 @@
 All notable changes to Vortex are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## v1.5.0
+
+### Added
+- **Rebranding without a rebuild** — when the panel's `brand_name` binding is empty, the page now falls back to a default read from a plain-text `<meta name="vortex-brand">` tag instead of a hardcoded string buried in the minified JS. Self-hosters can rebrand an already-built `dist/index.html` on the server with a single `sed` command (documented in the README) — no Node/npm toolchain needed.
+
+### Changed
+- **~70KB (17.5%) smaller build.** Two safe, verified optimizations:
+  - Dropped the Arad Regular (400) and SemiBold (600) font weights — neither is referenced anywhere in the app (every text-bearing element either inherits the body's 500 or explicitly sets 700/800/900), so they were pure dead weight (~48KB raw / ~64KB base64-inlined).
+  - The combined CSS (UnoCSS output + `base.css`) is now minified with esbuild before inlining, instead of shipping raw with comments and formatting whitespace. The build guards against minification producing a stray `{{`/`}}`/`{%`/`%}`/`{#`/`#}` sequence (e.g. a nested `@media{...}}` or a declaration ending in `100%}`), which would otherwise trip the pongo2 directive guard — a single CSS-insignificant space is inserted wherever that could happen.
+- Verified with a rebuilt `dist/index.html` (400KB → 330KB), the existing visual-regression checks, and manual light/dark, EN/FA screenshots — no visual regressions.
+
 ## v1.4.2
 
 ### Added

@@ -7,6 +7,13 @@
     <meta name="robots" content="noindex,nofollow" />
     <meta name="theme-color" content="#111111" />
     <title>Vortex</title>
+    <!-- Default brand name — used whenever the panel's brand_name binding (see the
+         data-island below) is empty. To rebrand an already-built dist/index.html on
+         the server without a rebuild, replace every whole-word occurrence of the
+         placeholder below (case-sensitive) with your brand, e.g.:
+           sed -i 's/\bVortex\b/YourBrand/g' dist/index.html
+         (see README -> "Rebranding without a rebuild"). -->
+    <meta name="vortex-brand" content="Vortex" />
     <!-- Blocking theme resolver: set data-theme before CSS paints to avoid a flash.
          Plain JS only (no template directives, no minification) — see scripts/build.mjs guard. -->
     <script>
